@@ -1,0 +1,66 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body{
+    height: 100%;
+}
+
+.container{
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    margin: 0 auto;
+    background-color: rgb(226, 226, 226); /*rgb(129, 194, 91);*/
+    height: 100vh;
+    width: 100%;
+    position: relative;
+}
+
+.title{
+    font-weight: bold;
+    font-size: 3rem;
+    text-align: center;
+    padding-top: 10px;
+}
+
+table{
+    margin-top: 5%;
+    width: 80%;
+    border-collapse: collapse;
+    border: solid black;
+}
+
+th, td{
+    border: 1px solid #000;
+    padding: 8px;
+
+}
+
+th{
+    background-color: #ececec;
+    text-align: center;
+}
+
+tbody{
+    background-color: white;
+}
+
+.dataName{
+    width: 50%;
+}
+
+.quantity, .price{
+    width: 25%;
+}
+
+.logInLink{
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 20px;
+    white-space: nowrap;
+}
