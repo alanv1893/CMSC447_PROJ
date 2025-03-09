@@ -11,7 +11,7 @@
 <body>
     <div id="app">
         <div class="container">
-            <h1 class="logInTitle"> Food Database </h1>
+            <h1 class="logInTitle"> Retrievers Essentials </h1>
             <div class="logInBox">
                 <h2 class="boxTitle">Log In</h2>
                 <div class="logInInput">
@@ -43,11 +43,22 @@
                     message: 'Hello from the Home Page!',
                     username: '',
                     password: '',
+                    dummyLogin: "user123",
+                    dummyPassword: "password",
+
                 };
             },
 
             methods: {
                 login(){
+                    if (this.username === '' || this.password === '') {
+                        alert('Please enter both username and password.');
+                        return;
+                    }
+                    if (this.username !== this.dummyLogin || this.password !== this.dummyPassword) {
+                        alert('Invalid username or password. Please try again.');
+                        return;
+                    }
                     window.location.href = 'homePage.html';
                 }
             }

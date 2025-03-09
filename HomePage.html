@@ -1,47 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Home Page</title>
-    <link rel="stylesheet" href="homeStyle.css">
-</head>
+    <link rel="stylesheet" href="homeStyle.css" />
+  </head>
 
-<body>
+  <body>
     <div id="app">
-        <div class="container">
-            <h1 class="title">Catalog</h1>
-            <a class="logInLink" href="LogIn.html">Log In</a>
-            <table id="data-table">
-                <thead>
-                    <tr>
-                        <th class="name">Name</th>
-                        <th class="quantity">Quantity</th>
-                        <th class="price">Price</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Apple</td>
-                        <td>10</td>
-                        <td>$1.00</td>
-                      </tr>
-                      <tr>
-                        <td>Banana</td>
-                        <td>5</td>
-                        <td>$0.50</td>
-                      </tr>
-                      <tr>
-                        <td>Cherry</td>
-                        <td>20</td>
-                        <td>$2.00</td>
-                      </tr>
-                </tbody>
-            </table>
-
+      <div class="container">
+        <div class="titleBox">
+          <h1 class="title">Retrievers Essentials</h1>
+          <a class="logInLink" href="LogIn.html">Log In</a>
         </div>
-        <!-- <h1>{{ message }}</h1>
+        <table id="data-table">
+          <thead>
+            <tr>
+              <th class="name">Name</th>
+              <th class="quantity">Quantity</th>
+              <th class="price">Price</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr>
+              <td>Apple</td>
+              <td>10</td>
+              <td class="priceRow">$1.00</td>
+            </tr>
+            <tr>
+              <td>Banana</td>
+              <td>5</td>
+              <td class="priceRow">$0.50</td>
+            </tr>
+            <tr>
+              <td>Cherry</td>
+              <td>20</td>
+              <td class="priceRow">$2.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- <h1>{{ message }}</h1>
         <p>Welcome to the home page!</p>
         <a href="about.html">Go to About Page</a> -->
     </div>
@@ -49,21 +49,37 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
     <script>
-        const { createApp } = Vue;
+      const { createApp } = Vue;
 
-        createApp({
-            data() {
-                return {
-                    message: 'Hello from the Home Page!',
-                };
-            },
+      createApp({
+        data() {
+          return {
+            testData: [
+              { Name: "Orange", Quantity: 8, Price: "$1.50" },
+              { Name: "Grapes", Quantity: 15, Price: "$2.00" },
+            ],
+          };
+        },
 
-            methods: {
-                
-            }
+        methods: {
+          testFunction() {
+            const tbody = document.getElementById("tbody");
+            this.testData.forEach((item) => {
+              const row = document.createElement("tr");
+              row.innerHTML = `
+                        <td>${item.Name}</td>
+                        <td>${item.Quantity}</td>
+                        <td class="priceRow">${item.Price}</td>
+                    `;
+              tbody.appendChild(row);
+            });
+          },
+        },
 
-        }).mount('#app');
+        mounted() {
+          this.testFunction();
+        },
+      }).mount("#app");
     </script>
-</body>
-
+  </body>
 </html>
