@@ -11,7 +11,9 @@
 <body>
     <div id="app">
         <div class="container">
-            <h1 class="logInTitle"> Retrievers Essentials </h1>
+            <div class="titleBox">
+                <h1 class="logInTitle"> Retrievers Essentials </h1>
+            </div>
             <div class="logInBox">
                 <h2 class="boxTitle">Log In</h2>
                 <div class="logInInput">
@@ -45,6 +47,7 @@
                     password: '',
                     dummyLogin: "user123",
                     dummyPassword: "password",
+                    loggedIn: false,
 
                 };
             },
@@ -59,6 +62,7 @@
                         alert('Invalid username or password. Please try again.');
                         return;
                     }
+                    localStorage.setItem('loggedIn', true);
                     window.location.href = 'homePage.html';
                 }
             }
