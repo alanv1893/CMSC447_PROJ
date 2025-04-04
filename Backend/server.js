@@ -2,6 +2,8 @@ const express = require('express');
 const app = express();
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./db/database.sqlite');
+const bcrypt = require('bcrypt'); // Import bcrypt for password hashing
+const cors = require('cors'); // For frontend-backend communication
 
 app.use(express.json());
 
@@ -9,6 +11,13 @@ app.use(express.json());
 app.get('/test', (req, res) => {
   res.send('Server is working!');
 });
+
+db.run(`CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL
+);`);
+
 
 // Get all inventory items
 app.get('/inventory', (req, res) => {
@@ -147,6 +156,53 @@ app.get('/items/category/:category', (req, res) => {
   });
 });
 
+///////////////////////////////////////////////////////////////////////////
+//IMPLEMENTATION OF THE LOGIN SERVICES
+
+app.use(cors()); // Enable CORS for frontend requests
+app.use(express.json()); // To parse JSON request bodies
+
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+
+  // Basic validation
+  if (!username || !password) {
+    return res.status(400).send('Username and password are required');
+  }
+
+  // Check if username is UMBC email
+  if (!username.endsWith('@umbc.edu')) {
+    return res.status(400).send('Only UMBC email addresses are allowed');
+  }
+
+  // Query database for user
+  const query = `SELECT * FROM users WHERE username = ?`;
+  db.get(query, [username], async (err, user) => {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).send('Internal server error');
+    }
+
+    // Check if user exists
+    if (!user) {
+      return res.status(400).send('User not found');
+    }
+
+    // Compare entered password with stored hashed password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(400).send('Invalid password');
+    }
+
+    // Successful login
+    res.send({ message: 'Login successful', userId: user.id });
+  });
+});
+
+///////////////////////////////////////////////////////////////////////////////
+
+
 // Create a new cart
 app.post('/carts', (req, res) => {
   db.run(`INSERT INTO carts (status) VALUES ('pending')`, function (err) {
@@ -169,6 +225,8 @@ app.post('/cart-items', (req, res) => {
       res.send({ id: this.lastID });
     });
 });
+
+
 
 // Approve cart and update inventory
 app.post('/approve-cart', (req, res) => {
