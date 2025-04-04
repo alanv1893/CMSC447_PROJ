@@ -4,6 +4,7 @@ import HomePage from '../views/HomePage.vue'
 import SignUp from '../views/SignUp.vue'
 import UserCart from '../views/UserCart.vue'
 import StoreFavorites from '../views/StoreFavorites.vue'
+import AddItem from '../views/AddItem.vue'
 
 const routes = [
   { path: '/', name: 'login', component: LogIn },
@@ -11,6 +12,7 @@ const routes = [
   { path: '/signup', name: 'signup', component: SignUp },
   { path: '/cart', name: 'cart', component: UserCart },
   { path: '/favorites', name: 'favorites', component: StoreFavorites },
+  { path: '/add-item', name: 'add-item', component: AddItem },
 ]
 
 const router = createRouter({

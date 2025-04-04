@@ -3,6 +3,9 @@ const app = express();
 const sqlite3 = require('sqlite3').verbose();
 const db = new sqlite3.Database('./db/database.sqlite');
 
+const cors = require('cors')
+app.use(cors())
+
 app.use(express.json());
 
 // Test route to confirm server is working
@@ -242,7 +245,21 @@ app.delete('/expired-carts', (req, res) => {
   });
 });
 
+// TEMP: Reset all data but keep tables NEED TO CHANGE TO app.DELETE USED GET FOR TESTING PURPOSE
+app.get('/reset-db', (req, res) => {
+  db.serialize(() => {
+    db.run('DELETE FROM inventory');
+    db.run('DELETE FROM items');
+    db.run('DELETE FROM categories');
+    db.run('DELETE FROM vendors');
+    db.run('DELETE FROM brands');
+    res.send(' All data cleared. Tables preserved.');
+  });
+});
+
 // Start the server
 app.listen(3000, () => {
   console.log('Server running on http://localhost:3000');
 });
+
+
