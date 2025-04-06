@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
 const sqlite3 = require('sqlite3').verbose();
+const xlsx = require('xlsx'); // Import the xlsx package
 const db = new sqlite3.Database('./db/database.sqlite');
 
 const cors = require('cors')
@@ -281,6 +282,94 @@ app.get('/cart-items/:cart_id', (req, res) => {
       return res.status(500).send('Error fetching cart items');
     }
     res.send(rows);
+  });
+});
+
+// Get transaction count by hour for a given day
+app.get('/traffic-report', (req, res) => {
+  const { date } = req.query; // The specific date (e.g., '2025-01-10')
+
+  // Validate date format
+  if (!date) {
+    return res.status(400).send('Date is required in the format YYYY-MM-DD');
+  }
+
+  // SQL query to get the number of approved transactions per hour for the given day
+  const sql = `
+    SELECT 
+      strftime('%H', timestamp) AS hour, 
+      COUNT(*) AS transactions
+    FROM carts
+    WHERE status = 'completed' 
+      AND DATE(timestamp) = ?
+    GROUP BY hour
+    ORDER BY hour;
+  `;
+
+  db.all(sql, [date], (err, rows) => {
+    if (err) {
+      console.error('DB Error:', err);
+      return res.status(500).send('Error fetching traffic report');
+    }
+
+    // If no data found for the day
+    if (rows.length === 0) {
+      return res.status(404).send('No transactions found for the specified day');
+    }
+
+    // Prepare the data to return in a format suitable for a bar graph
+    const trafficData = [];
+
+    // Fill in all hours from 9 AM to 8 PM (default open hours)
+    for (let hour = 9; hour <= 20; hour++) {
+      const hourString = hour < 10 ? `0${hour}` : `${hour}`;
+      const entry = rows.find(row => row.hour === hourString);
+      trafficData.push({
+        hour: hourString,
+        transactions: entry ? entry.transactions : 0,
+      });
+    }
+
+    res.send(trafficData);
+  });
+});
+
+
+// Export items from inventory with associated item names as an .xlsx file
+app.get('/export-inventory', (req, res) => {
+  const sql = `
+    SELECT i.productname, iv.quantity
+    FROM inventory iv
+    JOIN items i ON iv.item_id = i.id
+  `;
+
+  db.all(sql, (err, rows) => {
+    if (err) {
+      console.error('DB Error:', err);
+      return res.status(500).send('Error fetching inventory data');
+    }
+
+    // Check if there is data to export
+    if (rows.length === 0) {
+      return res.status(404).send('No inventory data found');
+    }
+
+    // Create a new workbook
+    const wb = xlsx.utils.book_new();
+
+    // Create a worksheet from the inventory data
+    const ws = xlsx.utils.json_to_sheet(rows);
+
+    // Add the worksheet to the workbook
+    xlsx.utils.book_append_sheet(wb, ws, 'Inventory');
+
+    // Write the workbook to a buffer
+    const buffer = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
+
+    // Set response headers for file download
+    res.setHeader('Content-Disposition', 'attachment; filename=inventory_report.xlsx');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
   });
 });
 
