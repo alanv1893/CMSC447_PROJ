@@ -257,9 +257,34 @@ app.get('/reset-db', (req, res) => {
   });
 });
 
+// Get all pending carts
+app.get('/carts', (req, res) => {
+  db.all(`SELECT * FROM carts WHERE status = 'pending' ORDER BY id DESC`, (err, rows) => {
+    if (err) return res.status(500).send('Error fetching carts');
+    res.send(rows);
+  });
+});
+
+// Get all items in a cart
+app.get('/cart-items/:cart_id', (req, res) => {
+  const { cart_id } = req.params;
+
+  const sql = `
+    SELECT ci.productname, ci.quantity
+    FROM cart_items ci
+    WHERE ci.cart_id = ?
+  `;
+
+  db.all(sql, [cart_id], (err, rows) => {
+    if (err) {
+      console.error('Failed to fetch cart items:', err);
+      return res.status(500).send('Error fetching cart items');
+    }
+    res.send(rows);
+  });
+});
+
 // Start the server
 app.listen(3000, () => {
   console.log('Server running on http://localhost:3000');
 });
-
-
