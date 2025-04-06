@@ -22,6 +22,31 @@ app.get('/inventory', (req, res) => {
   });
 });
 
+
+// Reutrns all inventory values
+app.get('/full-inventory', (req, res) => {
+  const sql = `
+    SELECT 
+      items.productname,
+      items.cost,
+      categories.category,
+      vendors.vendor,
+      brands.brand_name,
+      inventory.quantity
+    FROM items
+    JOIN categories ON items.category_id = categories.id
+    JOIN vendors ON items.vendor_id = vendors.id
+    JOIN brands ON items.brand_id = brands.id
+    JOIN inventory ON inventory.item_id = items.id
+  `;
+
+  db.all(sql, [], (err, rows) => {
+    if (err) return res.status(500).send('Database error: ' + err.message);
+    res.json(rows);
+  });
+});
+
+
 // Get all vendors
 app.get('/vendors', (req, res) => {
   db.all('SELECT vendor FROM vendors', (err, rows) => {

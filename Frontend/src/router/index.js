@@ -5,6 +5,7 @@ import UserCart from '../views/UserCart.vue'
 import StoreFavorites from '../views/StoreFavorites.vue'
 import AddItem from '../views/AddItem.vue'
 import ApproveTransactions from '../views/ApproveTransactions.vue'
+import DisplayInventory from '../views/DisplayInventory.vue'
 
 
 const routes = [
@@ -13,6 +14,7 @@ const routes = [
   { path: '/cart', name: 'cart', component: UserCart },
   { path: '/favorites', name: 'favorites', component: StoreFavorites },
   { path: '/add-item', name: 'add-item', component: AddItem },
+  { path: '/inventory', name: 'DisplayInventory', component: DisplayInventory },
   { path: '/approve-transactions', name: 'approve-transactions', component: ApproveTransactions },
 ]
 

@@ -14,7 +14,7 @@
 
         <select v-model="item.product" class="dropdown">
           <option disabled value="">Select Product</option>
-          <option v-for="prod in productsByCategory[item.category] || []" :key="prod" :value="prod">{{ prod }}</option>
+          <option v-for="prod in productsByCategory[item.category] || []" :key="prod.id" :value="prod.productname">{{ prod.productname }}</option>
         </select>
 
         <select v-model="item.quantity" class="dropdown">

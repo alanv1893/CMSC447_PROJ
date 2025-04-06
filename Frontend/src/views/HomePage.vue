@@ -5,6 +5,7 @@
     </div>
 
     <div class="button-group">
+      <RouterLink to="/inventory" class="item-link">📋 View Full Inventory</RouterLink>
       <RouterLink to="/reports" class="item-link">📊 Run Reports</RouterLink>
       <RouterLink to="/add-item" class="item-link">➕ Add or Review Items</RouterLink>
       <RouterLink to="/cart" class="item-link">🛒 View User Cart</RouterLink>
@@ -19,13 +20,7 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const loggedIn = ref(false)
-const items = ref([
-  { name: 'Apple', price: '$1.00', quantity: 10 },
-  { name: 'Banana', price: '$0.50', quantity: 5 },
-  { name: 'Cherry', price: '$2.00', quantity: 20 },
-  { name: 'Orange', price: '$1.50', quantity: 8 },
-  { name: 'Grapes', price: '$2.00', quantity: 15 }
-])
+
 
 function logOut() {
   localStorage.removeItem('loggedIn')
