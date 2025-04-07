@@ -62,14 +62,17 @@ async function approveCart(cartId) {
     await fetch('http://localhost:3000/approve-cart', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cart_id: cartId.cart_id || cartId.id })
+      body: JSON.stringify({ cart_id: cartId }) // ✅ FIXED
     })
-    carts.value = carts.value.filter(cart => cart.cart_id !== cartId && cart.id !== cartId)
+
+    // ✅ Remove approved cart from UI
+    carts.value = carts.value.filter(cart => (cart.cart_id || cart.id) !== cartId)
     selectedCart.value = null
   } catch (err) {
     console.error('Error approving cart:', err)
   }
 }
+
 
 function rejectCart(cartId) {
   // Placeholder: implement reject logic if needed
