@@ -363,9 +363,18 @@ app.get('/traffic-report', (req, res) => {
 // Export items from inventory with associated item names as an .xlsx file
 app.get('/export-inventory', (req, res) => {
   const sql = `
-    SELECT i.productname, iv.quantity
+    SELECT 
+      i.productname AS name, 
+      c.category AS category, 
+      v.vendor AS supplier, 
+      b.brand_name AS brand, 
+      i.cost, 
+      iv.quantity
     FROM inventory iv
     JOIN items i ON iv.item_id = i.id
+    JOIN categories c ON i.category_id = c.id
+    JOIN vendors v ON i.vendor_id = v.id
+    JOIN brands b ON i.brand_id = b.id
   `;
 
   db.all(sql, (err, rows) => {

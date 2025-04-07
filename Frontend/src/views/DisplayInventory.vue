@@ -2,29 +2,31 @@
   <div class="container">
     <h1>📦 Full Inventory</h1>
 
-    <table v-if="inventory.length">
-      <thead>
-        <tr>
-          <th>Product</th>
-          <th>Cost</th>
-          <th>Category</th>
-          <th>Vendor</th>
-          <th>Brand</th>
-          <th>Quantity</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(item, index) in inventory" :key="index">
-          <td>{{ item.productname }}</td>
-          <td>${{ item.cost }}</td>
-          <td>{{ item.category }}</td>
-          <td>{{ item.vendor }}</td>
-          <td>{{ item.brand_name }}</td>
-          <td>{{ item.quantity }}</td>
-        </tr>
-      </tbody>
-    </table>
-
+    <template v-if="inventory.length">
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Cost</th>
+            <th>Category</th>
+            <th>Vendor</th>
+            <th>Brand</th>
+            <th>Quantity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(item, index) in inventory" :key="index">
+            <td>{{ item.productname }}</td>
+            <td>${{ item.cost }}</td>
+            <td>{{ item.category }}</td>
+            <td>{{ item.vendor }}</td>
+            <td>{{ item.brand_name }}</td>
+            <td>{{ item.quantity }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="export-button" @click="exportAsExcel">Download Inventory (.xlsx)</button>
+    </template>
     <p v-else>Loading inventory...</p>
   </div>
 </template>
@@ -42,6 +44,26 @@ onMounted(async () => {
     console.error('Failed to load inventory:', err)
   }
 })
+
+function exportAsExcel() {
+  fetch('http://localhost:3000/export-inventory')
+    .then(response => {
+      if (!response.ok) throw new Error('Network response was not ok');
+      return response.blob();
+    })
+    .then(blob => {
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'inventory_report.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    })
+    .catch(error => {
+      console.error('Export failed:', error);
+    });
+}
 </script>
 
 <style scoped>
@@ -78,5 +100,22 @@ th {
 
 tbody tr:hover {
   background-color: #fdf5c9;
+}
+
+.export-button {
+  display: block;
+  margin: 30px auto 0;
+  padding: 12px 24px;
+  background-color: #217346; /* Excel-like blue-green */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.export-button:hover {
+  background-color: #1a5e39;
 }
 </style>
