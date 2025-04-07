@@ -47,6 +47,23 @@ app.get('/full-inventory', (req, res) => {
   });
 });
 
+// TEMP: Reset all data but keep tables NEED TO CHANGE TO app.DELETE USED GET FOR TESTING PURPOSE
+app.get('/reset-db', (req, res) => {
+  db.serialize(() => {
+    db.run('DELETE FROM cart_items');
+    db.run('DELETE FROM carts');
+    db.run('DELETE FROM inventory');
+    db.run('DELETE FROM items');
+    db.run('DELETE FROM categories');
+    db.run('DELETE FROM vendors');
+    db.run('DELETE FROM brands');
+    db.run('DELETE FROM sqlite_sequence'); // resets autoincrement IDs
+    res.send('✅ All reset');
+  });
+});
+
+
+
 
 // Get all vendors
 app.get('/vendors', (req, res) => {
