@@ -238,7 +238,24 @@ app.post('/login', (req, res) => {
 
 // Create a new cart
 app.post('/carts', (req, res) => {
-  db.run(`INSERT INTO carts (status) VALUES ('pending')`, function (err) {
+  const now = new Date();
+  const nyTime = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(now);
+
+  // Convert MM/DD/YYYY, HH:MM:SS format to YYYY-MM-DD HH:MM:SS
+  const [date, time] = nyTime.split(', ');
+  const [month, day, year] = date.split('/');
+  const formatted = `${year}-${month}-${day} ${time}`;
+
+  db.run(`INSERT INTO carts (status, timestamp) VALUES ('pending', ?)`, [formatted], function (err) {
     if (err) return res.status(500).send('Error creating cart');
     res.send({ cart_id: this.lastID });
   });
