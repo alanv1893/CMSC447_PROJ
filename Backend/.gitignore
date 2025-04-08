@@ -1,0 +1,26 @@
+node_modules/
+
+# Ignore environment config
+.env
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Optional: Mac system files
+.DS_Store
+
+# Optional: VS Code settings
+.vscode/
+
+# Optional: OS trash files
+*.swp
+Thumbs.db
+
+# Optional: coverage and build directories
+coverage/
+dist/
+build/
+# Optional: if using Vue
+*.locali
