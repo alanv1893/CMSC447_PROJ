@@ -1,30 +1,29 @@
-INFORMATION About the FROnt End Building 
+Must run npm install with bash in frontend and backend 
+*If you have a problem delete the node_modules folder's and re run the command 
+to start backend go to backend and type 'node server.js'
+to start frontend go to src and run 'npm run dev'
+
+
 
 All the pages are stored under Frontend/src/views  (This is what the web pages are)
-to make them connect they need to be added to /router/index.js ....i think thats the only place
+to make them connect they need to be added to /router/index.js 
 
-Must run the server that info is in backend 
-to run fronend that info is in the ,txt in frontend 
 
 Currently admin page is all we have and its called homepage
 
-the logins is user123   and password is password 
+ 
+The login is now test@umbc.edu and password123
 
-I added some functionality like cart and approving things
-*need tofix an issue where on the top up it dosent display the item name for approving 
-*in the approval page click on the item to approve it works 
-*rejecting does not reject ti stays on the list 
+For the add or review items its functinality in the end will need to include 
+-Uploading an .xlsx to add supplier orders that are recived 
+-Automated way to upate and change stock in general 
 
-made the cart it works good
+**We could call these 'recive order' and 'audit inventory'
+-They should have a warning message if thats ok about the implications of what they are gonna do 
+-than allow them to select the xlsx file they wanna upload 
+-back end returns success or failed 
 
-I added an outline for reports that we can start creating 
+Cooper dont worry about the making it uplaod or anything but if you can add the buttons it would be cool
 
-One is the traffick on a day 
 
-The other is getting all the inventory 
 
-The explanation is in the backend end read me 
-
-implement those
-
-Also the auth login needs to be in its just hard coded rn 
