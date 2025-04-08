@@ -3,8 +3,9 @@ const app = express();
 const sqlite3 = require('sqlite3').verbose();
 const xlsx = require('xlsx'); // Import the xlsx package
 const db = new sqlite3.Database('./db/database.sqlite');
-
 const cors = require('cors')
+const bcrypt = require('bcrypt'); 
+
 app.use(cors())
 
 app.use(express.json());
@@ -45,6 +46,23 @@ app.get('/full-inventory', (req, res) => {
     res.json(rows);
   });
 });
+
+// TEMP: Reset all data but keep tables NEED TO CHANGE TO app.DELETE USED GET FOR TESTING PURPOSE
+app.get('/reset-db', (req, res) => {
+  db.serialize(() => {
+    db.run('DELETE FROM cart_items');
+    db.run('DELETE FROM carts');
+    db.run('DELETE FROM inventory');
+    db.run('DELETE FROM items');
+    db.run('DELETE FROM categories');
+    db.run('DELETE FROM vendors');
+    db.run('DELETE FROM brands');
+    db.run('DELETE FROM sqlite_sequence'); // resets autoincrement IDs
+    res.send('✅ All reset');
+  });
+});
+
+
 
 
 // Get all vendors
@@ -175,6 +193,48 @@ app.get('/items/category/:category', (req, res) => {
     res.send(rows);
   });
 });
+
+///////////////////////////////////////////////////////////////////////////
+//IMPLEMENTATION OF THE LOGIN SERVICES
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+
+  // Basic validation
+  if (!username || !password) {
+    return res.status(400).send('Username and password are required');
+  }
+
+  // Check if username is UMBC email
+  if (!username.endsWith('@umbc.edu')) {
+    return res.status(400).send('Only UMBC email addresses are allowed');
+  }
+
+  // Query database for user
+  const query = `SELECT * FROM users WHERE username = ?`;
+  db.get(query, [username], async (err, user) => {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).send('Internal server error');
+    }
+
+    // Check if user exists
+    if (!user) {
+      return res.status(400).send('User not found');
+    }
+
+    // Compare entered password with stored hashed password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(400).send('Invalid password');
+    }
+
+    // Successful login
+    res.send({ message: 'Login successful', userId: user.id });
+  });
+});
+
+///////////////////////////////////////////////////////////////////////////////
 
 // Create a new cart
 app.post('/carts', (req, res) => {

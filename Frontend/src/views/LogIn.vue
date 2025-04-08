@@ -28,24 +28,39 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios' 
 
 const username = ref('')
 const password = ref('')
-const dummyLogin = 'user123'
-const dummyPassword = 'password'
 const router = useRouter()
 
-function login() {
+// To test login I have added a user with test@umbc.edu and password is yourpassword
+
+async function login() {
   if (!username.value || !password.value) {
     alert('Please enter both username and password.')
     return
   }
-  if (username.value !== dummyLogin || password.value !== dummyPassword) {
-    alert('Invalid username or password.')
-    return
+
+  try {
+    const response = await axios.post('http://localhost:3000/login', {
+      username: username.value,
+      password: password.value
+    })
+
+    // If login is successful, save to localStorage and redirect
+    localStorage.setItem('loggedIn', 'true')
+    localStorage.setItem('userId', response.data.userId) // optional: store user ID
+    alert('Login successful!')
+    router.push('/home')
+  } catch (error) {
+    // Handle errors (invalid password, user not found, etc.)
+    if (error.response && error.response.data) {
+      alert(error.response.data)
+    } else {
+      alert('An unexpected error occurred.')
+    }
   }
-  localStorage.setItem('loggedIn', 'true')
-  router.push('/home')
 }
 
 onMounted(() => {
