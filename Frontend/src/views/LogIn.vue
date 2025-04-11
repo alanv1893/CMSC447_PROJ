@@ -34,8 +34,6 @@ const username = ref('')
 const password = ref('')
 const router = useRouter()
 
-// To test login I have added a user with test@umbc.edu and password is yourpassword
-
 async function login() {
   if (!username.value || !password.value) {
     alert('Please enter both username and password.')
@@ -48,12 +46,14 @@ async function login() {
       password: password.value
     })
 
-    // If login is successful, save to localStorage and redirect
+    //  Save user info to localStorage
     localStorage.setItem('loggedIn', 'true')
-    localStorage.setItem('userId', response.data.userId) // optional: store user ID
+    localStorage.setItem('userId', response.data.userId)
+    localStorage.setItem('userRole', response.data.role) 
+
+    // Handle errors (invalid password, user not found, etc.)
     router.push('/home')
   } catch (error) {
-    // Handle errors (invalid password, user not found, etc.)
     if (error.response && error.response.data) {
       alert(error.response.data)
     } else {

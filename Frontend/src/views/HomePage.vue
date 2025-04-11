@@ -1,20 +1,29 @@
 <template>
   <div class="container">
     <div class="titleBox">
-      <h1 class="title">Welcome, Admin</h1>
+      <h1 class="title">Welcome, {{ role ? role.charAt(0).toUpperCase() + role.slice(1) : '' }}</h1>
       <a class="logOutLink" v-if="loggedIn" @click="logOut" href="/">Log Out</a>
     </div>
-    
 
     <div class="button-group">
-      <RouterLink to="/inventory" class="item-link">📋 View Full Inventory</RouterLink>
-      <RouterLink to="/reports" class="item-link">📊 Run Reports</RouterLink>
-      <RouterLink to="/add-item" class="item-link">➕ Add or Review Items</RouterLink>
-      <RouterLink to="/cart" class="item-link">🛒 View User Cart</RouterLink>
-      <RouterLink to="/Approve-transactions" class="item-link">✅ Approve Transactions</RouterLink>
+      <!-- Inventory: All roles -->
+      <RouterLink to="/home/inventory" class="item-link">📋 View Full Inventory</RouterLink>
+
+      <!-- Reports: Admin only -->
+      <RouterLink v-if="role === 'admin'" to="/home/reports" class="item-link">📊 Run Reports</RouterLink>
+
+      <!-- Add Items: Admin only -->
+      <RouterLink v-if="role === 'admin'" to="/home/add-item" class="item-link">➕ Add or Review Items</RouterLink>
+
+      <!-- User Cart: User only -->
+      <RouterLink v-if="role === 'user'" to="/home/cart" class="item-link">🛒 View User Cart</RouterLink>
+
+      <!-- Approve Transactions: Admin and Cashier -->
+      <RouterLink v-if="role === 'admin' || role === 'cashier'" to="/home/approve-transactions" class="item-link">✅ Approve Transactions</RouterLink>
     </div>
   </div>
 </template>
+
 
 <script setup>
 import { onMounted, ref } from 'vue'
@@ -22,10 +31,12 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const loggedIn = ref(false)
-
+const role = localStorage.getItem('userRole')
 
 function logOut() {
   localStorage.removeItem('loggedIn')
+  localStorage.removeItem('userRole')
+  localStorage.removeItem('userId')
   router.push('/')
 }
 
@@ -69,7 +80,6 @@ onMounted(() => {
   justify-content: center; /* Centers the text horizontally */
 }
 
-
 .title {
   margin: 0;
   font-size: 3rem;
@@ -85,7 +95,7 @@ onMounted(() => {
   text-decoration: none;
   font-weight: bold;
   border-radius: 8px;
-  font-size: 1.25rem
+  font-size: 1.25rem;
 }
 
 .item-link:hover {
@@ -106,7 +116,8 @@ table {
   background: #fff;
 }
 
-th, td {
+th,
+td {
   padding: 10px;
   border: 1px solid #333;
 }
@@ -115,13 +126,13 @@ th {
   background: #fff2cc;
 }
 
-.logOutLink{
-    position: absolute;
-    top: 25px;
-    right: 20px;
-    font-size: 20px;
-    white-space: nowrap;
-    font-weight: bold;
-    color: gold;
+.logOutLink {
+  position: absolute;
+  top: 25px;
+  right: 20px;
+  font-size: 20px;
+  white-space: nowrap;
+  font-weight: bold;
+  color: gold;
 }
 </style>

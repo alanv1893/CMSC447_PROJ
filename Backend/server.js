@@ -230,7 +230,7 @@ app.post('/login', (req, res) => {
     }
 
     // Successful login
-    res.send({ message: 'Login successful', userId: user.id });
+    res.send({ message: 'Login successful', userId: user.id, role: user.role });
   });
 });
 
