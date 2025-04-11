@@ -15,8 +15,8 @@
       <!-- Add Items: Admin only -->
       <RouterLink v-if="role === 'admin'" to="/home/add-item" class="item-link">➕ Add or Review Items</RouterLink>
 
-      <!-- User Cart: User only -->
-      <RouterLink v-if="role === 'user'" to="/home/cart" class="item-link">🛒 View User Cart</RouterLink>
+      <!-- User Cart: All roles -->
+      <RouterLink to="/home/cart" class="item-link">🛒 View User Cart</RouterLink>
 
       <!-- Approve Transactions: Admin and Cashier -->
       <RouterLink v-if="role === 'admin' || role === 'cashier'" to="/home/approve-transactions" class="item-link">✅ Approve Transactions</RouterLink>
