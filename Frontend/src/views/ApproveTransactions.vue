@@ -1,6 +1,9 @@
 <template>
   <div class="container">
     <div class="titleBox">
+      <div class="backButton" @click="goBack" title="Go Back">
+        <span class="backButton-text">Back</span>
+      </div>
       <h1 class="title">Retrievers Essentials</h1>
       <a class="logOutLink" v-if="loggedIn" @click="logOut" href="/">Log Out</a>
     </div>
@@ -51,6 +54,10 @@ async function fetchCarts() {
   } catch (err) {
     console.error('Error fetching carts:', err)
   }
+}
+
+function goBack() {
+  history.back()
 }
 
 async function fetchCartItems(cartId) {
@@ -264,5 +271,20 @@ onMounted(() => {
   white-space: nowrap;
   font-weight: bold;
   color: gold;
+} 
+
+.backButton {
+  position: absolute;
+  top: 25px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.backButton-text {
+  color: gold;
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-decoration: underline;
 }
 </style>

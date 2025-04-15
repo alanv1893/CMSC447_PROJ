@@ -1,6 +1,9 @@
 <template>
   <div class="container">
     <div class="titleBox">
+      <div class="backButton" @click="goBack" title="Go Back">
+        <span class="backButton-text">Back</span>
+      </div>
       <h1 class="title">Retriever Essentials</h1>
       <a class="logOutLink" v-if="loggedIn" @click="logOut" href="/">Log Out</a>
     </div>
@@ -59,6 +62,10 @@ function formatCost() {
   if (cost.value !== '' && !isNaN(cost.value)) {
     cost.value = parseFloat(cost.value).toFixed(2)
   }
+}
+
+function goBack() {
+  history.back()
 }
 
 function logOut() {
@@ -211,5 +218,20 @@ button:hover {
   white-space: nowrap;
   font-weight: bold;
   color: gold;
+}
+
+.backButton {
+  position: absolute;
+  top: 25px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.backButton-text {
+  color: gold;
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-decoration: underline;
 }
 </style>
