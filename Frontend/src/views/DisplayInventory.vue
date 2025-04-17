@@ -31,24 +31,36 @@
           </tr>
         </tbody>
       </table>
-      <button class="export-button" @click="exportAsExcel">Download Inventory (.xlsx)</button>
+
+      <!-- Only show this if the user is admin -->
+      <button
+        v-if="role === 'admin'"
+        class="export-button"
+        @click="exportAsExcel"
+      >
+        Download Inventory (.xlsx)
+      </button>
     </template>
+
     <p v-else>Loading inventory...</p>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
-
+const router = useRouter()
 const inventory = ref([])
 const loggedIn = ref(false)
+const role = localStorage.getItem('userRole') // <- Consistent with homepage.vue
 
 onMounted(async () => {
   loggedIn.value = localStorage.getItem('loggedIn') === 'true'
   if (!loggedIn.value) {
     router.push('/')
   }
+
   try {
     const res = await fetch('http://localhost:3000/full-inventory')
     inventory.value = await res.json()
@@ -61,24 +73,31 @@ function goBack() {
   history.back()
 }
 
+function logOut() {
+  localStorage.removeItem('loggedIn')
+  localStorage.removeItem('userRole')
+  localStorage.removeItem('userId')
+  router.push('/')
+}
+
 function exportAsExcel() {
   fetch('http://localhost:3000/export-inventory')
     .then(response => {
-      if (!response.ok) throw new Error('Network response was not ok');
-      return response.blob();
+      if (!response.ok) throw new Error('Network response was not ok')
+      return response.blob()
     })
     .then(blob => {
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'inventory_report.xlsx');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', 'inventory_report.xlsx')
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     })
     .catch(error => {
-      console.error('Export failed:', error);
-    });
+      console.error('Export failed:', error)
+    })
 }
 </script>
 
@@ -94,7 +113,6 @@ function exportAsExcel() {
   background-color: #f5c100;
   min-height: 100vh;
   padding: 100px 20px 20px;
-  /* top, left/right, bottom */
   text-align: center;
   box-sizing: border-box;
 }
@@ -110,12 +128,9 @@ function exportAsExcel() {
   text-align: center;
   box-sizing: border-box;
   height: 80px;
-  /* Adjust this value to your preference */
   display: flex;
   align-items: center;
-  /* Centers the text vertically */
   justify-content: center;
-  /* Centers the text horizontally */
 }
 
 .title {
@@ -124,23 +139,12 @@ function exportAsExcel() {
   font-weight: bold;
 }
 
-
-.button-group {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  max-width: 300px;
-  margin: 30px auto;
-}
-
 table {
   margin: auto;
   border-collapse: collapse;
   background: #fff;
   width: 100%;
-  /* Ensures the table uses the full width */
   table-layout: fixed;
-  /* Ensures column widths are evenly distributed */
 }
 
 th,
@@ -168,7 +172,6 @@ th {
   margin: 30px auto 0;
   padding: 12px 24px;
   background-color: #217346;
-  /* Excel-like blue-green */
   color: white;
   border: none;
   border-radius: 5px;
@@ -179,7 +182,7 @@ th {
 
 .export-button:hover {
   background-color: #1a5e39;
-} 
+}
 
 .backButton {
   position: absolute;
@@ -189,6 +192,7 @@ th {
   align-items: center;
   cursor: pointer;
 }
+
 .backButton-text {
   color: gold;
   font-size: 1.2rem;
