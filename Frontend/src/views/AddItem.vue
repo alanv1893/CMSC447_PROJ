@@ -106,6 +106,13 @@ async function submitItem() {
 
     const data = await res.json()
     responseMessage.value = data.message || 'Item added successfully!'
+    //reset
+    productname.value = '';
+    cost.value = '';
+    vendor.value = '';
+    category.value = '';
+    brand_name.value = '';
+    quantity.value = 1;
   } catch (err) {
     responseMessage.value = 'Error: ' + err.message
   }
