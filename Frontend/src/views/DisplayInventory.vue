@@ -9,6 +9,12 @@
     </div>
 
     <template v-if="inventory.length">
+      <input
+        v-model="searchQuery"
+        type="text"
+        class="search-bar"
+        placeholder="Search inventory..."
+      />
       <table>
         <thead>
           <tr>
@@ -21,7 +27,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(item, index) in inventory" :key="index">
+          <tr v-for="(item, index) in filteredInventory" :key="index">
             <td>{{ item.category }}</td>
             <td>{{ item.productname }}</td>
             <td>{{ item.vendor }}</td>
@@ -47,13 +53,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const inventory = ref([])
 const loggedIn = ref(false)
-const role = localStorage.getItem('userRole') // <- Consistent with homepage.vue
+const role = localStorage.getItem('userRole') 
+const searchQuery = ref('')
+
+const filteredInventory = computed(() => {
+  return inventory.value.filter(item => {
+    const q = searchQuery.value.toLowerCase()
+    return (
+      item.category.toLowerCase().includes(q) ||
+      item.productname.toLowerCase().includes(q) ||
+      item.vendor.toLowerCase().includes(q) ||
+      (item.brand_name && item.brand_name.toLowerCase().includes(q))
+    )
+  })
+})
+
 
 onMounted(async () => {
   loggedIn.value = localStorage.getItem('loggedIn') === 'true'
@@ -199,4 +219,16 @@ th {
   font-weight: bold;
   text-decoration: underline;
 }
+
+.search-bar {
+  width: 60%;
+  max-width: 500px;
+  padding: 10px;
+  margin: 20px auto;
+  display: block;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
 </style>
