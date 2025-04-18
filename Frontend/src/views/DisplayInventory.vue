@@ -15,6 +15,35 @@
         class="search-bar"
         placeholder="Search inventory..."
       />
+
+      <div class="filter-bar">
+        <select v-model="filterCategory" class="filter-dropdown">
+          <option value="">Categories</option>
+          <option v-for="(cat, i) in uniqueCategories" :key="i" :value="cat">
+            {{ cat }}
+          </option>
+        </select>
+
+        <!-- Product -->
+        <select v-model="filterProduct" class="filter-dropdown">
+          <option value="">Products</option>
+          <option v-for="(prod, i) in uniqueProducts" :key="i">{{ prod }}</option>
+        </select>
+
+        <!-- Vendor -->
+        <select v-model="filterVendor" class="filter-dropdown">
+          <option value="">Vendors</option>
+          <option v-for="(ven, i) in uniqueVendors" :key="i">{{ ven }}</option>
+        </select>
+
+        <!-- Brand -->
+        <select v-model="filterBrand" class="filter-dropdown">
+          <option value="">Brands</option>
+          <option v-for="(b, i) in uniqueBrands" :key="i">{{ b }}</option>
+        </select>
+      </div>
+
+
       <table>
         <thead>
           <tr>
@@ -59,51 +88,93 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const inventory = ref([])
 const loggedIn = ref(false)
-const role = localStorage.getItem('userRole') 
+const role = localStorage.getItem('userRole')
 const searchQuery = ref('')
+const filterCategory = ref('')
+const filterProduct = ref('')
+const filterVendor = ref('')
+const filterBrand = ref('')
 
+//  category dropdown values
+const uniqueCategories = computed(() => {
+  return [...new Set(inventory.value.map(i => i.category))].filter(Boolean)
+})
+const uniqueProducts = computed(() => {
+  return [...new Set(inventory.value.map(i => i.productname))].filter(Boolean)
+})
+
+const uniqueVendors = computed(() => {
+  return [...new Set(inventory.value.map(i => i.vendor))].filter(Boolean)
+})
+
+const uniqueBrands = computed(() => {
+  return [...new Set(inventory.value.map(i => i.brand_name))].filter(Boolean)
+})
+
+
+// filter logic
 const filteredInventory = computed(() => {
   return inventory.value.filter(item => {
     const q = searchQuery.value.toLowerCase()
+
+    const matchesSearch =
+      item.category?.toLowerCase().includes(q) ||
+      item.productname?.toLowerCase().includes(q) ||
+      item.vendor?.toLowerCase().includes(q) ||
+      item.brand_name?.toLowerCase().includes(q)
+
+    const matchesCategory =
+      filterCategory.value === '' || item.category === filterCategory.value
+    const matchesProduct =
+      filterProduct.value === '' || item.productname === filterProduct.value
+    const matchesVendor =
+      filterVendor.value === '' || item.vendor === filterVendor.value
+    const matchesBrand =
+      filterBrand.value === '' || item.brand_name === filterBrand.value
+
     return (
-      item.category.toLowerCase().includes(q) ||
-      item.productname.toLowerCase().includes(q) ||
-      item.vendor.toLowerCase().includes(q) ||
-      (item.brand_name && item.brand_name.toLowerCase().includes(q))
+      matchesSearch &&
+      matchesCategory &&
+      matchesProduct &&
+      matchesVendor &&
+      matchesBrand
     )
   })
 })
 
 
+// fetch + login check
 onMounted(async () => {
   loggedIn.value = localStorage.getItem('loggedIn') === 'true'
   if (!loggedIn.value) {
     router.push('/')
+    return
   }
 
   try {
     const res = await fetch('http://localhost:3000/full-inventory')
-    inventory.value = await res.json()
+    if (!res.ok) throw new Error('Network error')
+    const data = await res.json()
+    inventory.value = data
   } catch (err) {
     console.error('Failed to load inventory:', err)
   }
 })
 
+// Navigation + Download
 function goBack() {
   history.back()
 }
 
 function logOut() {
-  localStorage.removeItem('loggedIn')
-  localStorage.removeItem('userRole')
-  localStorage.removeItem('userId')
+  localStorage.clear()
   router.push('/')
 }
 
 function exportAsExcel() {
   fetch('http://localhost:3000/export-inventory')
     .then(response => {
-      if (!response.ok) throw new Error('Network response was not ok')
+      if (!response.ok) throw new Error('Export error')
       return response.blob()
     })
     .then(blob => {
@@ -115,11 +186,12 @@ function exportAsExcel() {
       link.click()
       document.body.removeChild(link)
     })
-    .catch(error => {
-      console.error('Export failed:', error)
+    .catch(err => {
+      console.error('Export failed:', err)
     })
 }
 </script>
+
 
 <style scoped>
 :global(html, body) {
@@ -160,10 +232,10 @@ function exportAsExcel() {
 }
 
 table {
-  margin: auto;
+  margin: 0 auto;
   border-collapse: collapse;
   background: #fff;
-  width: 100%;
+  width: 95%;
   table-layout: fixed;
 }
 
@@ -230,5 +302,25 @@ th {
   border-radius: 5px;
   font-size: 1rem;
 }
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 10px 0;
+  padding-left: 40px; /* 👈 matches left edge of table */
+}
+
+
+.filter-dropdown {
+  padding: 8px 12px;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  min-width: 150px;
+}
+
 
 </style>
