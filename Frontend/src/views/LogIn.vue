@@ -5,6 +5,7 @@
     </div>
     <div class="logInBox">
       <h2 class="boxTitle">Log In</h2>
+      <h3 class="errorMsg">{{ errorMsg }}</h3>
       <div class="logInInput">
         <p class="logInText">Username</p>
         <input class="inputBox" type="text" v-model="username" placeholder="Enter your username" />
@@ -33,10 +34,11 @@ import axios from 'axios'
 const username = ref('')
 const password = ref('')
 const router = useRouter()
+const errorMsg = ref('')
 
 async function login() {
   if (!username.value || !password.value) {
-    alert('Please enter both username and password.')
+    errorMsg.value = 'Enter both username and password.'
     return
   }
 
@@ -46,21 +48,32 @@ async function login() {
       password: password.value
     })
 
-    //  Save user info to localStorage
+    // Save user info to localStorage
     localStorage.setItem('loggedIn', 'true')
     localStorage.setItem('userId', response.data.userId)
-    localStorage.setItem('userRole', response.data.role) 
+    localStorage.setItem('userRole', response.data.role)
 
-    // Handle errors (invalid password, user not found, etc.)
+    // Navigate to home page
     router.push('/home')
   } catch (error) {
-    if (error.response && error.response.data) {
-      alert(error.response.data)
+    if (error.response) {
+      const serverMsg = error.response.data?.error || ''
+
+      if (serverMsg.toLowerCase().includes('username')) {
+        errorMsg.value = 'Incorrect username.'
+      } else if (serverMsg.toLowerCase().includes('password')) {
+        errorMsg.value = 'Incorrect password.'
+      } else {
+        errorMsg.value = 'Login failed. Please try again.'
+      }
+    } else if (error.request) {
+      errorMsg.value = 'No response from server. Please check your connection.'
     } else {
-      alert('An unexpected error occurred.')
+      errorMsg.value = 'An unexpected error occurred.'
     }
   }
 }
+
 
 onMounted(() => {
   window.addEventListener('keydown', (e) => {
@@ -190,6 +203,15 @@ onMounted(() => {
   display: flex;
   align-items: center; /* Centers the text vertically */
   justify-content: center; /* Centers the text horizontally */
+}
+
+.errorMsg {
+  position: absolute;
+  top: 60px; /* adjust this value to position it lower */
+  left: 50%;
+  transform: translateX(-50%);
+  color: red;
+  font-weight: 300;
 }
 
 </style>
