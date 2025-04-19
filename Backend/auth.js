@@ -46,7 +46,10 @@ router.post('/register', async (req, res) => {
 });
 
 // Sends the actual email with the link that has the token in it
-const sendVerificationEmail = (userEmail, token) => {
+const sendVerificationEmail = async (userEmail, token) => {
+    await db.run('UPDATE users SET role = ?, verification_token = NULL WHERE email = ?', ['student', userEmail]);
+    console.log(`✅ Auto-approved account for ${userEmail}`);
+    /* (REAMOVE the = asnc)
     const link = `http://yourdomain.com/verify-email?token=${token}`;
     const mailOptions = {
         from: process.env.GMAIL_USER,
@@ -61,7 +64,9 @@ const sendVerificationEmail = (userEmail, token) => {
         } else {
             console.log('Verification email sent:', info.response);
         }
-    });
+    });*/
+
+    
 };
 
 // This logs in users after checking their email, password, and status
@@ -198,9 +203,19 @@ const sendResetEmail = (userEmail, token) => {
             console.log('Reset password email sent:', info.response);
         }
     });
+
 };
+const requireRole = (allowedRoles) => {
+    return (req, res, next) => {
+      if (!allowedRoles.includes(req.userRole)) {
+        return res.status(403).send({ message: 'Access denied: insufficient permissions.' });
+      }
+      next();
+    };
+  };
 
 module.exports = {
     router,
-    verifyToken
+    verifyToken,
+    requireRole
 };

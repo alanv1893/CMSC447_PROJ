@@ -33,6 +33,45 @@ GET /cart-items/:cart_id - Get all items in a cart
 GET /export-inventory - Export items in inventory with associated names as an Excel (.xlsx) file
 POST /upload-xlsx - Upload and parse an Excel (.xlsx) file for processing
 
+ ##### User Accounts 
+ ```
+GET /verify-email - Verify user from email link
+POST /login - Log in a user
+POST /register - Register a new user (pending status)
+POST /reset-password - Request a password reset email
+POST /update-password - Update password using valid token
+```
+
+ ##### Inventory Reprts
+
+
+
+ ##### Data Normalization 
+Only Admins Have Access 
+
+POST /normalize/rename-item - Rename an item by name  
+POST /normalize/rename-vendor - Rename a vendor  
+POST /normalize/rename-category - Rename a category  
+POST /normalize/rename-brand - Rename a brand  
+
+POST /normalize/merge-categories - Merge one category into another  
+POST /normalize/merge-vendors - Merge one vendor into another  
+POST /normalize/merge-brands - Merge one brand into another  
+POST /normalize/merge-duplicate-items - Merge duplicate items into one  
+
+POST /normalize/delete-unused-item - Delete an item not in use  
+POST /normalize/delete-unused-reference - Delete an unused vendor/category/brand  
+
+POST /normalize/update-item-cost - Update an item's cost  
+POST /normalize/update-inventory-quantity - Update inventory quantity for an item  
+POST /normalize/remove-item-and-inventory - Fully remove an item and its inventory  
+POST /normalize/reassign-item-details - Reassign an item's vendor/category/brand  
+
+GET /normalize/flag-low-stock - Get items with zero or negative stock  
+
+###### Update Inventory
+
+
 
 Shopping Cart Explanation:
 The problem with a single table is that carts are dynamic we dont know how many items they will get
@@ -87,6 +126,3 @@ What It Returns:
 	•	The API will return an Excel file (inventory_report.xlsx) containing the data from the inventory table along with the productname from the items table.
 	•	The file will be downloaded automatically by your browser, and the data will be in a tabular format.
 
-What It Returns:
-	•	The API will return an Excel file (inventory_report.xlsx) containing the data from the inventory table along with the productname from the items table.
-	•	The file will be downloaded automatically by your browser, and the data will be in a tabular format.

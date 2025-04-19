@@ -6,10 +6,13 @@ const db = new sqlite3.Database('./db/database.sqlite');
 const cors = require('cors')
 const bcrypt = require('bcrypt'); 
 
+const authRoutes = require('./auth');
+const normalizeRoutes = require('./normalize');
 app.use(cors())
 
 app.use(express.json());
-
+app.use('/auth', authRoutes);        
+app.use('/', normalizeRoutes);        
 // Test route to confirm server is working
 app.get('/test', (req, res) => {
   res.send('Server is working!');
@@ -324,6 +327,7 @@ app.post('/approve-cart', (req, res) => {
 
 // Delete expired carts and associated cart items
 // After one hour
+// Needs to be fixed i think 
 app.delete('/expired-carts', (req, res) => {
   const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1 hour ago
 
