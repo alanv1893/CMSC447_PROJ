@@ -201,12 +201,12 @@ app.post('/login', (req, res) => {
 
   // Basic validation
   if (!username || !password) {
-    return res.status(400).send('Username and password are required');
+    return res.status(400).json({ error: 'Username and password are required' });
   }
 
   // Check if username is UMBC email
   if (!username.endsWith('@umbc.edu')) {
-    return res.status(400).send('Only UMBC email addresses are allowed');
+    return res.status(400).json({ error: 'Only UMBC email addresses are allowed' });
   }
 
   // Query database for user
@@ -214,27 +214,31 @@ app.post('/login', (req, res) => {
   db.get(query, [username], async (err, user) => {
     if (err) {
       console.error(err.message);
-      return res.status(500).send('Internal server error');
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
     // Check if user exists
     if (!user) {
-      return res.status(400).send('User not found');
+      return res.status(401).json({ error: 'Incorrect username' });
     }
 
     // Compare entered password with stored hashed password
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(400).send('Invalid password');
+      return res.status(401).json({ error: 'Incorrect password' });
     }
 
     // Successful login
-    res.send({ message: 'Login successful', userId: user.id, role: user.role });
+    res.json({
+      message: 'Login successful',
+      userId: user.id,
+      role: user.role
+    });
   });
 });
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 
 // Create a new cart
 app.post('/carts', (req, res) => {

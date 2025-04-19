@@ -56,23 +56,27 @@ async function login() {
     // Navigate to home page
     router.push('/home')
   } catch (error) {
-    if (error.response) {
-      const serverMsg = error.response.data?.error || ''
+      if (error.response) {
+        const serverMsg = error.response.data?.error || ''
 
-      if (serverMsg.toLowerCase().includes('username')) {
-        errorMsg.value = 'Incorrect username.'
-      } else if (serverMsg.toLowerCase().includes('password')) {
-        errorMsg.value = 'Incorrect password.'
+        if (serverMsg.toLowerCase().includes('username')) {
+          errorMsg.value = 'Incorrect username.'
+        } else if (serverMsg.toLowerCase().includes('password')) {
+          errorMsg.value = 'Incorrect password.'
+        } else if (serverMsg.toLowerCase().includes('umbc')) {
+          errorMsg.value = 'Only UMBC email addresses are allowed.'
+        } else {
+          errorMsg.value = 'Login failed. Please try again.'
+        }
+      } else if (error.request) {
+        errorMsg.value = 'No response from server. Please check your connection.'
       } else {
-        errorMsg.value = 'Login failed. Please try again.'
+        errorMsg.value = 'An unexpected error occurred.'
       }
-    } else if (error.request) {
-      errorMsg.value = 'No response from server. Please check your connection.'
-    } else {
-      errorMsg.value = 'An unexpected error occurred.'
     }
   }
-}
+  
+
 
 
 onMounted(() => {
