@@ -13,6 +13,10 @@ I Think we need to also use AXIOS or something
 
 List of all the Queries:
 *Not an Exaustive List Will Make More 
+
+### Inventory Stuff 
+
+```
 GET /test - Test route to confirm server is working
 GET /inventory - Get all inventory items
 GET /vendors - Get all vendors
@@ -32,8 +36,17 @@ GET /carts - Get all pending carts
 GET /cart-items/:cart_id - Get all items in a cart
 GET /export-inventory - Export items in inventory with associated names as an Excel (.xlsx) file
 POST /upload-xlsx - Upload and parse an Excel (.xlsx) file for processing
+```
 
+### Users Accounts 
 
+```
+GET /verify-email - Verify user from email link
+POST /login - Log in a user
+POST /register - Register a new user (pending status)
+POST /reset-password - Request a password reset email
+POST /update-password - Update password using valid token
+```
 Shopping Cart Explanation:
 The problem with a single table is that carts are dynamic we dont know how many items they will get
 To solve this i made 2 tables /carts and /cart-items 
