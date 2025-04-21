@@ -8,6 +8,7 @@ import AddItem from '../views/AddItem.vue'
 import ApproveTransactions from '../views/ApproveTransactions.vue'
 import DisplayInventory from '../views/DisplayInventory.vue'
 import Reports from '../views/Reports.vue'
+import Normalize from '../views/Normalize.vue' // Added Normalize import
 // Layouts
 import MainLayout from '../layouts/Layout.vue'
 
@@ -26,6 +27,7 @@ const routes = [
       { path: 'inventory', name: 'DisplayInventory', component: DisplayInventory },
       { path: 'approve-transactions', name: 'approve-transactions', component: ApproveTransactions },
       { path: 'reports', name: 'reports', component: Reports },
+      { path: 'normalize', name: 'normalize', component: Normalize }, // Added Normalize route
     ]
   }
 ]
