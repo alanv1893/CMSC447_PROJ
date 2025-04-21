@@ -33,3 +33,26 @@ npm run build
 ```sh
 npm run lint
 ```
+download vue and the sqlite extenstion for vs code then do below
+
+
+1. . Start the Backend
+
+cd Backend
+npm install
+node server.js
+
+Should say:
+Server running on http://localhost:3000
+to reset db do http://localhost:3000/reset-db
+
+
+2. 3. Start the Frontend
+In a new terminal tab:
+
+npm install
+npm run dev
+
+Should say:
+
+Local: http://localhost:5173
