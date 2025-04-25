@@ -347,14 +347,15 @@ app.post('/approve-cart', (req, res) => {
           db.get(`SELECT id FROM items WHERE productname = ?`, [productname], (err, item) => {
             if (err || !item) return db.run('ROLLBACK', () => res.status(500).send('Item not found'));
             const item_id = item.id;
-
+            
             db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [item_id], (err, inv) => {
               if (err || !inv) return db.run('ROLLBACK', () => res.status(500).send('Inventory not found'));
-
-              db.run(`UPDATE inventory SET quantity = quantity - ? WHERE item_id = ?`,
-                [quantity, item_id], (err) => {
-                  if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
-                  processItem(index + 1);
+            
+              const newQuantity = Math.max(inv.quantity - quantity, 0);
+            
+              db.run(`UPDATE inventory SET quantity = ? WHERE item_id = ?`, [newQuantity, item_id], (err) => {
+                if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
+                processItem(index + 1);
               });
             });
           });
