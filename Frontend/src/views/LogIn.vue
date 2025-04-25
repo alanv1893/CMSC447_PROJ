@@ -58,6 +58,7 @@ async function login() {
     })
 
     // ✅ Save login info to localStorage
+    localStorage.setItem('username', response.data.username)
     localStorage.setItem('loggedIn', 'true')
     localStorage.setItem('userId', response.data.userId)
     localStorage.setItem('userRole', response.data.role)
