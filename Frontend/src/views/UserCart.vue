@@ -66,14 +66,10 @@ function goBack() {
 
 async function createTransaction() {
   try {
-    const userId = localStorage.getItem('userId')
 
     const cartRes = await fetch('http://localhost:3000/carts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-      user_id: userId
-      })
     })
 
     const cartData = await cartRes.json()

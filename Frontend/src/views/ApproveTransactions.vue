@@ -103,13 +103,12 @@ async function approveCart(cartId) {
     const data = await res.json()
 
     if (data.status === 'insufficient') {
-      overrideReason.value = data.message // e.g., "Insufficient quantity for: Apples, Milk"
+      overrideReason.value = data.message
       overrideCartId.value = cartId
       overridePrompt.value = true
       return
     }
 
-    // Proceed with normal approval
     await sendApproval(cartId)
   } catch (err) {
     console.error('Error checking inventory:', err)
@@ -118,15 +117,23 @@ async function approveCart(cartId) {
 
 async function sendApproval(cartId, override = false) {
   try {
-    await fetch('http://localhost:3000/approve-cart', {
+    const res = await fetch('http://localhost:3000/approve-cart', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         cart_id: cartId,
         override,
-        override_password: override ? overridePassword.value : null
+        override_password: override ? overridePassword.value : null,
+        override_username: override ? localStorage.getItem('username') : null
       })
     })
+
+    if (!res.ok) {
+      const msg = await res.text()
+      alert('Approval failed: ' + msg)
+      return
+    }
+
     carts.value = carts.value.filter(cart => (cart.cart_id || cart.id) !== cartId)
     selectedCart.value = null
     overridePrompt.value = false
@@ -135,6 +142,7 @@ async function sendApproval(cartId, override = false) {
     console.error('Error approving cart:', err)
   }
 }
+
 
 
 function rejectCart(cartId) {

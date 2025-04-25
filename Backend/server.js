@@ -261,6 +261,7 @@ app.post('/login', (req, res) => {
     res.json({
       message: 'Login successful',
       userId: user.id,
+      username: user.username,
       role: user.role
     });
   });
@@ -270,9 +271,6 @@ app.post('/login', (req, res) => {
 
 // Create a new cart
 app.post('/carts', (req, res) => {
-  const { user_id } = req.body;
-  if (!user_id) return res.status(400).send('Missing user ID');
-
   const now = new Date();
   const nyTime = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
@@ -289,13 +287,17 @@ app.post('/carts', (req, res) => {
   const [month, day, year] = date.split('/');
   const formatted = `${year}-${month}-${day} ${time}`;
 
-  db.run(`INSERT INTO carts (status, timestamp, user_id) VALUES ('pending', ?, ?)`,
-    [formatted, user_id],
+  db.run(`INSERT INTO carts (status, timestamp) VALUES ('pending', ?)`,
+    [formatted],
     function (err) {
-      if (err) return res.status(500).send('Error creating cart');
+      if (err) {
+        console.error('Error inserting cart:', err);
+        return res.status(500).send('Error creating cart');
+      }
       res.send({ cart_id: this.lastID });
     });
 });
+
 
 
 // Add an item to a specific cart
@@ -315,10 +317,14 @@ app.post('/cart-items', (req, res) => {
 
 // Approve cart and update inventory
 app.post('/approve-cart', (req, res) => {
-  const { cart_id, override, override_password } = req.body;
-  if (!cart_id) return res.status(400).send('Missing cart ID');
+  const { cart_id, override, override_password, override_username } = req.body;
 
-  function proceedWithApproval() {
+  if (!cart_id) return res.status(400).send('Missing cart ID');
+  if (override && (!override_password || !override_username)) {
+    return res.status(400).send('Missing override credentials');
+  }
+
+  function proceedWithApproval(approverUsername) {
     db.serialize(() => {
       db.run('BEGIN TRANSACTION');
 
@@ -327,10 +333,11 @@ app.post('/approve-cart', (req, res) => {
 
         const processItem = (index) => {
           if (index >= items.length) {
-            db.run(`UPDATE carts SET status = 'completed' WHERE id = ?`, [cart_id], function (err) {
-              if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating cart status'));
+            db.run(`UPDATE carts SET status = 'completed', approved_by = ? WHERE id = ?`,
+              [approverUsername, cart_id], (err) => {
+              if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating cart'));
               db.run('COMMIT');
-              return res.send({ message: 'Cart approved and inventory updated' });
+              return res.send({ message: 'Cart approved successfully' });
             });
             return;
           }
@@ -344,10 +351,10 @@ app.post('/approve-cart', (req, res) => {
             db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [item_id], (err, inv) => {
               if (err || !inv) return db.run('ROLLBACK', () => res.status(500).send('Inventory not found'));
 
-              // 💡 Still subtract even if inventory is 0 (override)
-              db.run(`UPDATE inventory SET quantity = quantity - ? WHERE item_id = ?`, [quantity, item_id], (err) => {
-                if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
-                processItem(index + 1);
+              db.run(`UPDATE inventory SET quantity = quantity - ? WHERE item_id = ?`,
+                [quantity, item_id], (err) => {
+                  if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
+                  processItem(index + 1);
               });
             });
           });
@@ -358,16 +365,19 @@ app.post('/approve-cart', (req, res) => {
     });
   }
 
-  // 🔒 Handle override flow
+  // 🔐 Override path
   if (override) {
-    db.get(`SELECT u.password FROM carts c JOIN users u ON c.user_id = u.id WHERE c.id = ?`, [cart_id], async (err, row) => {
-      if (err || !row) return res.status(500).send('User not found');
+    db.get(`SELECT password FROM override_passwords WHERE username = ?`, [override_username], async (err, row) => {
+      if (err || !row) return res.status(404).send('Override user not found');
+
       const isValid = await bcrypt.compare(override_password, row.password);
       if (!isValid) return res.status(403).send('Invalid override password');
-      proceedWithApproval(); // ✅ Only runs if password is correct
+
+      proceedWithApproval(override_username);
     });
+
+  // ✅ Normal path
   } else {
-    // ✅ Regular flow: verify inventory first
     db.all(`SELECT ci.productname, ci.quantity AS requested, iv.quantity AS available
             FROM cart_items ci
             JOIN items i ON ci.productname = i.productname
@@ -380,10 +390,11 @@ app.post('/approve-cart', (req, res) => {
         return res.status(400).send('Insufficient inventory');
       }
 
-      proceedWithApproval(); // ✅ Only runs if inventory is enough
+      proceedWithApproval('system'); // fallback approver name
     });
   }
 });
+
 
 
 // Delete expired carts and associated cart items
