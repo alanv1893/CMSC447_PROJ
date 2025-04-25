@@ -53,6 +53,7 @@
             <th>Brand</th>
             <th>Cost</th>
             <th>Quantity</th>
+            <th v-if="role === 'admin'">⋮</th>
           </tr>
         </thead>
         <tbody>
@@ -63,9 +64,39 @@
             <td>{{ item.brand_name }}</td>
             <td>${{ item.cost }}</td>
             <td>{{ item.quantity }}</td>
+            <td v-if="role === 'admin'" class="menu-cell">
+              <button class="menu-button" @click="toggleMenu(index)">⋮</button>
+              <div v-if="showMenuIndex === index" class="dropdown-menu">
+                <button @click="openModal('rename', item)">Rename</button>
+                <button @click="openModal('quantity', item)">Update Qty</button>
+                <button @click="openModal('delete', item)">Delete</button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
+
+      <div v-if="modalType" class="modal-overlay">
+        <div class="modal">
+          <button class="close-btn" @click="closeModal">✖</button>
+          <h3 v-if="modalType === 'rename'">Rename "{{ selectedItem.productname }}"</h3>
+          <h3 v-if="modalType === 'quantity'">Update Quantity for "{{ selectedItem.productname }}"</h3>
+          <h3 v-if="modalType === 'delete'">Delete "{{ selectedItem.productname }}"?</h3>
+
+          <input
+            v-if="modalType !== 'delete'"
+            v-model="modalInput"
+            type="text"
+            class="modal-input"
+            :placeholder="modalType === 'rename' ? 'New name' : 'New quantity'"
+          />
+
+          <div class="modal-actions">
+            <button class="approve-btn" @click="submitModalAction">✅ Confirm</button>
+            <button class="reject-btn" @click="closeModal">❌ Cancel</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Only show this if the user is admin -->
       <button
@@ -94,6 +125,65 @@ const filterCategory = ref('')
 const filterProduct = ref('')
 const filterVendor = ref('')
 const filterBrand = ref('')
+const showMenuIndex = ref(null)
+const selectedItem = ref(null)
+const modalType = ref('')
+const modalInput = ref('')
+
+
+
+function toggleMenu(index) {
+  showMenuIndex.value = showMenuIndex.value === index ? null : index
+}
+
+function openModal(type, item) {
+  modalType.value = type
+  selectedItem.value = item
+  modalInput.value = ''
+  showMenuIndex.value = null
+}
+
+function closeModal() {
+  modalType.value = ''
+  selectedItem.value = {}
+  modalInput.value = ''
+}
+
+async function submitModalAction() {
+  const name = selectedItem.value.productname
+  let endpoint = ''
+  let body = {}
+
+  if (modalType.value === 'rename') {
+    endpoint = '/normalize/rename-item'
+    body = { oldName: name, newName: modalInput.value }
+  } else if (modalType.value === 'quantity') {
+    endpoint = '/normalize/update-inventory-quantity'
+    body = { itemName: name, newQty: Math.max(0, parseInt(modalInput.value)) }
+  } else if (modalType.value === 'delete') {
+    endpoint = '/normalize/remove-item-and-inventory'
+    body = { itemName: name }
+  }
+
+  try {
+    const res = await fetch(`http://localhost:3000${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+
+    if (!res.ok) throw new Error(await res.text())
+    await reloadInventory()
+    closeModal()
+  } catch (err) {
+    console.error('Normalize action failed:', err)
+  }
+}
+
+async function reloadInventory() {
+  const res = await fetch('http://localhost:3000/full-inventory')
+  inventory.value = await res.json()
+}
 
 //  category dropdown values
 const uniqueCategories = computed(() => {
@@ -320,6 +410,109 @@ th {
   border-radius: 6px;
   border: 1px solid #ccc;
   min-width: 150px;
+}
+
+.menu-cell {
+  position: relative;
+  text-align: center;
+}
+
+.menu-button {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  padding: 12px 0;
+  color: #333;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: white;
+  border: 1px solid #ccc;
+  z-index: 10;
+  min-width: 140px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-radius: 6px;
+}
+
+.dropdown-menu button {
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.dropdown-menu button:hover {
+  background: #fde768;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 10px;
+  min-width: 300px;
+  position: relative;
+  text-align: center;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 1rem;
+}
+
+.modal-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: space-around;
+}
+
+.approve-btn,
+.reject-btn {
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.approve-btn {
+  background: green;
+  color: white;
+}
+
+.reject-btn {
+  background: red;
+  color: white;
+}
+
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
 }
 
 
