@@ -121,6 +121,35 @@ app.post('/brands', (req, res) => {
   });
 });
 
+app.get('/check-inventory/:cartId', (req, res) => {
+  const { cartId } = req.params;
+
+  const sql = `
+    SELECT ci.productname, ci.quantity AS requested, iv.quantity AS available
+    FROM cart_items ci
+    JOIN items i ON ci.productname = i.productname
+    JOIN inventory iv ON i.id = iv.item_id
+    WHERE ci.cart_id = ?
+  `;
+
+  db.all(sql, [cartId], (err, rows) => {
+    if (err) return res.status(500).send('Error checking inventory');
+
+    const insufficient = rows.filter(row => row.available < row.requested);
+
+    if (insufficient.length > 0) {
+      const list = insufficient.map(i => `${i.productname} (Need ${i.requested}, Have ${i.available})`);
+      return res.status(200).json({
+        status: 'insufficient',
+        message: `Insufficient quantity for: ${list.join(', ')}`
+      });
+    }
+
+    res.json({ status: 'sufficient' });
+  });
+});
+
+
 // Add new item and update inventory
 app.post('/items', (req, res) => {
   const { productname, cost, category, vendor, brand_name, quantity } = req.body;
@@ -241,6 +270,9 @@ app.post('/login', (req, res) => {
 
 // Create a new cart
 app.post('/carts', (req, res) => {
+  const { user_id } = req.body;
+  if (!user_id) return res.status(400).send('Missing user ID');
+
   const now = new Date();
   const nyTime = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
@@ -253,16 +285,18 @@ app.post('/carts', (req, res) => {
     hour12: false
   }).format(now);
 
-  // Convert MM/DD/YYYY, HH:MM:SS format to YYYY-MM-DD HH:MM:SS
   const [date, time] = nyTime.split(', ');
   const [month, day, year] = date.split('/');
   const formatted = `${year}-${month}-${day} ${time}`;
 
-  db.run(`INSERT INTO carts (status, timestamp) VALUES ('pending', ?)`, [formatted], function (err) {
-    if (err) return res.status(500).send('Error creating cart');
-    res.send({ cart_id: this.lastID });
-  });
+  db.run(`INSERT INTO carts (status, timestamp, user_id) VALUES ('pending', ?, ?)`,
+    [formatted, user_id],
+    function (err) {
+      if (err) return res.status(500).send('Error creating cart');
+      res.send({ cart_id: this.lastID });
+    });
 });
+
 
 // Add an item to a specific cart
 app.post('/cart-items', (req, res) => {
@@ -281,49 +315,76 @@ app.post('/cart-items', (req, res) => {
 
 // Approve cart and update inventory
 app.post('/approve-cart', (req, res) => {
-  const { cart_id } = req.body;
+  const { cart_id, override, override_password } = req.body;
   if (!cart_id) return res.status(400).send('Missing cart ID');
 
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
+  function proceedWithApproval() {
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
 
-    db.all(`SELECT productname, quantity FROM cart_items WHERE cart_id = ?`, [cart_id], (err, items) => {
-      if (err) return db.run('ROLLBACK', () => res.status(500).send('Error fetching cart items'));
+      db.all(`SELECT productname, quantity FROM cart_items WHERE cart_id = ?`, [cart_id], (err, items) => {
+        if (err) return db.run('ROLLBACK', () => res.status(500).send('Error fetching cart items'));
 
-      const processItem = (index) => {
-        if (index >= items.length) {
-          db.run(`UPDATE carts SET status = 'completed' WHERE id = ?`, [cart_id], function (err) {
-            if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating cart status'));
-            db.run('COMMIT');
-            return res.send({ message: 'Cart approved and inventory updated' });
-          });
-          return;
-        }
+        const processItem = (index) => {
+          if (index >= items.length) {
+            db.run(`UPDATE carts SET status = 'completed' WHERE id = ?`, [cart_id], function (err) {
+              if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating cart status'));
+              db.run('COMMIT');
+              return res.send({ message: 'Cart approved and inventory updated' });
+            });
+            return;
+          }
 
-        const { productname, quantity } = items[index];
+          const { productname, quantity } = items[index];
 
-        db.get(`SELECT id FROM items WHERE productname = ?`, [productname], (err, item) => {
-          if (err || !item) return db.run('ROLLBACK', () => res.status(500).send('Item not found'));
-          const item_id = item.id;
+          db.get(`SELECT id FROM items WHERE productname = ?`, [productname], (err, item) => {
+            if (err || !item) return db.run('ROLLBACK', () => res.status(500).send('Item not found'));
+            const item_id = item.id;
 
-          db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [item_id], (err, inv) => {
-            if (err || !inv) return db.run('ROLLBACK', () => res.status(500).send('Inventory not found'));
-            if (inv.quantity < quantity) {
-              return db.run('ROLLBACK', () => res.status(400).send(`Not enough inventory for ${productname}`));
-            }
+            db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [item_id], (err, inv) => {
+              if (err || !inv) return db.run('ROLLBACK', () => res.status(500).send('Inventory not found'));
 
-            db.run(`UPDATE inventory SET quantity = quantity - ? WHERE item_id = ?`, [quantity, item_id], (err) => {
-              if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
-              processItem(index + 1);
+              // 💡 Still subtract even if inventory is 0 (override)
+              db.run(`UPDATE inventory SET quantity = quantity - ? WHERE item_id = ?`, [quantity, item_id], (err) => {
+                if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
+                processItem(index + 1);
+              });
             });
           });
-        });
-      };
+        };
 
-      processItem(0);
+        processItem(0);
+      });
     });
-  });
+  }
+
+  // 🔒 Handle override flow
+  if (override) {
+    db.get(`SELECT u.password FROM carts c JOIN users u ON c.user_id = u.id WHERE c.id = ?`, [cart_id], async (err, row) => {
+      if (err || !row) return res.status(500).send('User not found');
+      const isValid = await bcrypt.compare(override_password, row.password);
+      if (!isValid) return res.status(403).send('Invalid override password');
+      proceedWithApproval(); // ✅ Only runs if password is correct
+    });
+  } else {
+    // ✅ Regular flow: verify inventory first
+    db.all(`SELECT ci.productname, ci.quantity AS requested, iv.quantity AS available
+            FROM cart_items ci
+            JOIN items i ON ci.productname = i.productname
+            JOIN inventory iv ON i.id = iv.item_id
+            WHERE ci.cart_id = ?`, [cart_id], (err, rows) => {
+      if (err) return res.status(500).send('Error checking inventory');
+
+      const insufficient = rows.filter(row => row.available < row.requested);
+      if (insufficient.length > 0) {
+        return res.status(400).send('Insufficient inventory');
+      }
+
+      proceedWithApproval(); // ✅ Only runs if inventory is enough
+    });
+  }
 });
+
 
 // Delete expired carts and associated cart items
 // After one hour

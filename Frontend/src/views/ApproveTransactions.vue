@@ -20,6 +20,7 @@
       </div>
     </div>
 
+    <!-- Shows cart items -->
     <div v-if="selectedCart" class="modal-overlay">
       <div class="modal">
         <button class="close-btn" @click="selectedCart = null">✖</button>
@@ -35,8 +36,28 @@
         </div>
       </div>
     </div>
+
+    <!-- Recheck and override -->
+    <div v-if="overridePrompt" class="modal-overlay">
+      <div class="modal">
+        <button class="close-btn" @click="overridePrompt = false">✖</button>
+        <h3>Recheck</h3>
+        <p>{{ overrideReason }}</p>
+        <input
+          type="password"
+          placeholder="Enter override password"
+          v-model="overridePassword"
+          class="override-input"
+        />
+        <div class="modal-actions">
+          <button class="approve-btn" @click="sendApproval(overrideCartId, true)">✅ Override & Approve</button>
+          <button class="reject-btn" @click="overridePrompt = false">❌ Cancel</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
 
 <script setup>
 import { ref, onMounted } from 'vue'
@@ -45,6 +66,11 @@ const carts = ref([])
 const selectedCart = ref(null)
 const cartItems = ref([])
 const loggedIn = ref(false)
+const overridePrompt = ref(false)
+const overrideReason = ref('')
+const overridePassword = ref('')
+const overrideCartId = ref(null)
+
 
 async function fetchCarts() {
   try {
@@ -73,17 +99,43 @@ async function fetchCartItems(cartId) {
 
 async function approveCart(cartId) {
   try {
+    const res = await fetch(`http://localhost:3000/check-inventory/${cartId}`)
+    const data = await res.json()
+
+    if (data.status === 'insufficient') {
+      overrideReason.value = data.message // e.g., "Insufficient quantity for: Apples, Milk"
+      overrideCartId.value = cartId
+      overridePrompt.value = true
+      return
+    }
+
+    // Proceed with normal approval
+    await sendApproval(cartId)
+  } catch (err) {
+    console.error('Error checking inventory:', err)
+  }
+}
+
+async function sendApproval(cartId, override = false) {
+  try {
     await fetch('http://localhost:3000/approve-cart', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cart_id: cartId })
+      body: JSON.stringify({
+        cart_id: cartId,
+        override,
+        override_password: override ? overridePassword.value : null
+      })
     })
     carts.value = carts.value.filter(cart => (cart.cart_id || cart.id) !== cartId)
     selectedCart.value = null
+    overridePrompt.value = false
+    overridePassword.value = ''
   } catch (err) {
     console.error('Error approving cart:', err)
   }
 }
+
 
 function rejectCart(cartId) {
   selectedCart.value = null
@@ -287,4 +339,14 @@ onMounted(() => {
   font-weight: bold;
   text-decoration: underline;
 }
+
+.override-input {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 1rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
 </style>
