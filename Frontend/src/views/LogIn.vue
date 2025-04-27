@@ -6,10 +6,17 @@
     <div class="logInBox">
       <h2 class="boxTitle">Log In</h2>
       <h3 class="errorMsg">{{ errorMsg }}</h3>
+
       <div class="logInInput">
         <p class="logInText">Username</p>
-        <input class="inputBox" type="text" v-model="username" placeholder="Enter your username" />
+        <input
+          class="inputBox"
+          type="text"
+          v-model="username"
+          placeholder="Enter your username"
+        />
       </div>
+
       <div class="logInInput">
         <p class="logInText">Password</p>
         <input
@@ -19,6 +26,7 @@
           placeholder="Enter your password"
         />
       </div>
+
       <div class="logInButton">
         <button class="button" @click="login">Log In</button>
       </div>
@@ -26,15 +34,16 @@
   </div>
 </template>
 
+
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios' 
+import axios from 'axios'
 
 const username = ref('')
 const password = ref('')
-const router = useRouter()
 const errorMsg = ref('')
+const router = useRouter()
 
 async function login() {
   if (!username.value || !password.value) {
@@ -48,21 +57,23 @@ async function login() {
       password: password.value
     })
 
-    // Save user info to localStorage
+    // ✅ Save login info to localStorage
+    localStorage.setItem('username', response.data.username)
     localStorage.setItem('loggedIn', 'true')
     localStorage.setItem('userId', response.data.userId)
     localStorage.setItem('userRole', response.data.role)
 
-    // Navigate to home page
+    // ✅ Redirect to home or dashboard
     router.push('/home')
   } catch (error) {
     if (error.response) {
       const serverMsg = error.response.data?.error || ''
-
       if (serverMsg.toLowerCase().includes('username')) {
         errorMsg.value = 'Incorrect username.'
       } else if (serverMsg.toLowerCase().includes('password')) {
         errorMsg.value = 'Incorrect password.'
+      } else if (serverMsg.toLowerCase().includes('umbc')) {
+        errorMsg.value = 'Only UMBC email addresses are allowed.'
       } else {
         errorMsg.value = 'Login failed. Please try again.'
       }
@@ -74,13 +85,14 @@ async function login() {
   }
 }
 
-
+// ✅ Allow Enter key to submit login
 onMounted(() => {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') login()
   })
 })
 </script>
+
 
 <style scoped>
 * {

@@ -66,9 +66,12 @@ function goBack() {
 
 async function createTransaction() {
   try {
+
     const cartRes = await fetch('http://localhost:3000/carts', {
-      method: 'POST'
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     })
+
     const cartData = await cartRes.json()
     cartId.value = cartData.cart_id
 

@@ -6,10 +6,9 @@ const db = new sqlite3.Database('./db/database.sqlite');
 const cors = require('cors')
 const bcrypt = require('bcrypt'); 
 
-app.use(cors())
 
 app.use(express.json());
-
+app.use(cors());
 // Test route to confirm server is working
 app.get('/test', (req, res) => {
   res.send('Server is working!');
@@ -122,6 +121,35 @@ app.post('/brands', (req, res) => {
   });
 });
 
+app.get('/check-inventory/:cartId', (req, res) => {
+  const { cartId } = req.params;
+
+  const sql = `
+    SELECT ci.productname, ci.quantity AS requested, iv.quantity AS available
+    FROM cart_items ci
+    JOIN items i ON ci.productname = i.productname
+    JOIN inventory iv ON i.id = iv.item_id
+    WHERE ci.cart_id = ?
+  `;
+
+  db.all(sql, [cartId], (err, rows) => {
+    if (err) return res.status(500).send('Error checking inventory');
+
+    const insufficient = rows.filter(row => row.available < row.requested);
+
+    if (insufficient.length > 0) {
+      const list = insufficient.map(i => `${i.productname} (Need ${i.requested}, Have ${i.available})`);
+      return res.status(200).json({
+        status: 'insufficient',
+        message: `Insufficient quantity for: ${list.join(', ')}`
+      });
+    }
+
+    res.json({ status: 'sufficient' });
+  });
+});
+
+
 // Add new item and update inventory
 app.post('/items', (req, res) => {
   const { productname, cost, category, vendor, brand_name, quantity } = req.body;
@@ -201,12 +229,12 @@ app.post('/login', (req, res) => {
 
   // Basic validation
   if (!username || !password) {
-    return res.status(400).send('Username and password are required');
+    return res.status(400).json({ error: 'Username and password are required' });
   }
 
   // Check if username is UMBC email
   if (!username.endsWith('@umbc.edu')) {
-    return res.status(400).send('Only UMBC email addresses are allowed');
+    return res.status(400).json({ error: 'Only UMBC email addresses are allowed' });
   }
 
   // Query database for user
@@ -214,27 +242,32 @@ app.post('/login', (req, res) => {
   db.get(query, [username], async (err, user) => {
     if (err) {
       console.error(err.message);
-      return res.status(500).send('Internal server error');
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
     // Check if user exists
     if (!user) {
-      return res.status(400).send('User not found');
+      return res.status(401).json({ error: 'Incorrect username' });
     }
 
     // Compare entered password with stored hashed password
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(400).send('Invalid password');
+      return res.status(401).json({ error: 'Incorrect password' });
     }
 
     // Successful login
-    res.send({ message: 'Login successful', userId: user.id, role: user.role });
+    res.json({
+      message: 'Login successful',
+      userId: user.id,
+      username: user.username,
+      role: user.role
+    });
   });
 });
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 
 // Create a new cart
 app.post('/carts', (req, res) => {
@@ -250,16 +283,22 @@ app.post('/carts', (req, res) => {
     hour12: false
   }).format(now);
 
-  // Convert MM/DD/YYYY, HH:MM:SS format to YYYY-MM-DD HH:MM:SS
   const [date, time] = nyTime.split(', ');
   const [month, day, year] = date.split('/');
   const formatted = `${year}-${month}-${day} ${time}`;
 
-  db.run(`INSERT INTO carts (status, timestamp) VALUES ('pending', ?)`, [formatted], function (err) {
-    if (err) return res.status(500).send('Error creating cart');
-    res.send({ cart_id: this.lastID });
-  });
+  db.run(`INSERT INTO carts (status, timestamp) VALUES ('pending', ?)`,
+    [formatted],
+    function (err) {
+      if (err) {
+        console.error('Error inserting cart:', err);
+        return res.status(500).send('Error creating cart');
+      }
+      res.send({ cart_id: this.lastID });
+    });
 });
+
+
 
 // Add an item to a specific cart
 app.post('/cart-items', (req, res) => {
@@ -278,49 +317,86 @@ app.post('/cart-items', (req, res) => {
 
 // Approve cart and update inventory
 app.post('/approve-cart', (req, res) => {
-  const { cart_id } = req.body;
+  const { cart_id, override, override_password, override_username } = req.body;
+
   if (!cart_id) return res.status(400).send('Missing cart ID');
+  if (override && (!override_password || !override_username)) {
+    return res.status(400).send('Missing override credentials');
+  }
 
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
+  function proceedWithApproval(approverUsername) {
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
 
-    db.all(`SELECT productname, quantity FROM cart_items WHERE cart_id = ?`, [cart_id], (err, items) => {
-      if (err) return db.run('ROLLBACK', () => res.status(500).send('Error fetching cart items'));
+      db.all(`SELECT productname, quantity FROM cart_items WHERE cart_id = ?`, [cart_id], (err, items) => {
+        if (err) return db.run('ROLLBACK', () => res.status(500).send('Error fetching cart items'));
 
-      const processItem = (index) => {
-        if (index >= items.length) {
-          db.run(`UPDATE carts SET status = 'completed' WHERE id = ?`, [cart_id], function (err) {
-            if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating cart status'));
-            db.run('COMMIT');
-            return res.send({ message: 'Cart approved and inventory updated' });
-          });
-          return;
-        }
+        const processItem = (index) => {
+          if (index >= items.length) {
+            db.run(`UPDATE carts SET status = 'completed', approved_by = ? WHERE id = ?`,
+              [approverUsername, cart_id], (err) => {
+              if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating cart'));
+              db.run('COMMIT');
+              return res.send({ message: 'Cart approved successfully' });
+            });
+            return;
+          }
 
-        const { productname, quantity } = items[index];
+          const { productname, quantity } = items[index];
 
-        db.get(`SELECT id FROM items WHERE productname = ?`, [productname], (err, item) => {
-          if (err || !item) return db.run('ROLLBACK', () => res.status(500).send('Item not found'));
-          const item_id = item.id;
-
-          db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [item_id], (err, inv) => {
-            if (err || !inv) return db.run('ROLLBACK', () => res.status(500).send('Inventory not found'));
-            if (inv.quantity < quantity) {
-              return db.run('ROLLBACK', () => res.status(400).send(`Not enough inventory for ${productname}`));
-            }
-
-            db.run(`UPDATE inventory SET quantity = quantity - ? WHERE item_id = ?`, [quantity, item_id], (err) => {
-              if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
-              processItem(index + 1);
+          db.get(`SELECT id FROM items WHERE productname = ?`, [productname], (err, item) => {
+            if (err || !item) return db.run('ROLLBACK', () => res.status(500).send('Item not found'));
+            const item_id = item.id;
+            
+            db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [item_id], (err, inv) => {
+              if (err || !inv) return db.run('ROLLBACK', () => res.status(500).send('Inventory not found'));
+            
+              const newQuantity = Math.max(inv.quantity - quantity, 0);
+            
+              db.run(`UPDATE inventory SET quantity = ? WHERE item_id = ?`, [newQuantity, item_id], (err) => {
+                if (err) return db.run('ROLLBACK', () => res.status(500).send('Error updating inventory'));
+                processItem(index + 1);
+              });
             });
           });
-        });
-      };
+        };
 
-      processItem(0);
+        processItem(0);
+      });
     });
-  });
+  }
+
+  // 🔐 Override path
+  if (override) {
+    db.get(`SELECT password FROM override_passwords WHERE username = ?`, [override_username], async (err, row) => {
+      if (err || !row) return res.status(404).send('Override user not found');
+
+      const isValid = await bcrypt.compare(override_password, row.password);
+      if (!isValid) return res.status(403).send('Invalid override password');
+
+      proceedWithApproval(override_username);
+    });
+
+  // ✅ Normal path
+  } else {
+    db.all(`SELECT ci.productname, ci.quantity AS requested, iv.quantity AS available
+            FROM cart_items ci
+            JOIN items i ON ci.productname = i.productname
+            JOIN inventory iv ON i.id = iv.item_id
+            WHERE ci.cart_id = ?`, [cart_id], (err, rows) => {
+      if (err) return res.status(500).send('Error checking inventory');
+
+      const insufficient = rows.filter(row => row.available < row.requested);
+      if (insufficient.length > 0) {
+        return res.status(400).send('Insufficient inventory');
+      }
+
+      proceedWithApproval('system'); // fallback approver name
+    });
+  }
 });
+
+
 
 // Delete expired carts and associated cart items
 // After one hour
@@ -483,6 +559,392 @@ app.get('/export-inventory', (req, res) => {
     res.send(buffer);
   });
 });
+
+/*
+NORMALIZE stuff
+
+
+*/
+//app.use(bodyParser.json());
+
+// Rename an item
+app.post('/normalize/rename-item', (req, res) => {
+  const { oldName, newName } = req.body;
+  if (!oldName || !newName) return res.status(400).send('Missing names');
+  db.run(
+    `UPDATE items SET productname = ? WHERE productname = ?`,
+    [newName, oldName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+// Rename a vendor
+app.post('/normalize/rename-vendor', (req, res) => {
+  const { oldName, newName } = req.body;
+  if (!oldName || !newName) return res.status(400).send('Missing names');
+  db.run(
+    `UPDATE vendors SET vendor = ? WHERE vendor = ?`,
+    [newName, oldName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+// Rename a category
+app.post('/normalize/rename-category', (req, res) => {
+  const { oldName, newName } = req.body;
+  if (!oldName || !newName) return res.status(400).send('Missing names');
+  db.run(
+    `UPDATE categories SET category = ? WHERE category = ?`,
+    [newName, oldName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+// Rename a brand
+app.post('/normalize/rename-brand', (req, res) => {
+  const { oldName, newName } = req.body;
+  if (!oldName || !newName) return res.status(400).send('Missing names');
+  db.run(
+    `UPDATE brands SET brand_name = ? WHERE brand_name = ?`,
+    [newName, oldName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+// Merge two categories
+app.post('/normalize/merge-categories', (req, res) => {
+  const { oldCategory, newCategory } = req.body;
+  if (!oldCategory || !newCategory) return res.status(400).send('Missing categories');
+  db.serialize(() => {
+    db.run(
+      `UPDATE items
+         SET category_id = (SELECT id FROM categories WHERE category = ?)
+       WHERE category_id = (SELECT id FROM categories WHERE category = ?)`,
+      [newCategory, oldCategory]
+    );
+    db.run(
+      `DELETE FROM categories WHERE category = ?`,
+      [oldCategory],
+      function(err) {
+        if (err) return res.status(500).send(err.message);
+        res.json({ deleted: this.changes });
+      }
+    );
+  });
+});
+
+// Merge two vendors
+app.post('/normalize/merge-vendors', (req, res) => {
+  const { oldVendor, newVendor } = req.body;
+  if (!oldVendor || !newVendor) return res.status(400).send('Missing vendors');
+  db.serialize(() => {
+    db.run(
+      `UPDATE items
+         SET vendor_id = (SELECT id FROM vendors WHERE vendor = ?)
+       WHERE vendor_id = (SELECT id FROM vendors WHERE vendor = ?)`,
+      [newVendor, oldVendor]
+    );
+    db.run(
+      `DELETE FROM vendors WHERE vendor = ?`,
+      [oldVendor],
+      function(err) {
+        if (err) return res.status(500).send(err.message);
+        res.json({ deleted: this.changes });
+      }
+    );
+  });
+});
+
+// Merge two brands
+app.post('/normalize/merge-brands', (req, res) => {
+  const { oldBrand, newBrand } = req.body;
+  if (!oldBrand || !newBrand) return res.status(400).send('Missing brands');
+  db.serialize(() => {
+    db.run(
+      `UPDATE items
+         SET brand_id = (SELECT id FROM brands WHERE brand_name = ?)
+       WHERE brand_id = (SELECT id FROM brands WHERE brand_name = ?)`,
+      [newBrand, oldBrand]
+    );
+    db.run(
+      `DELETE FROM brands WHERE brand_name = ?`,
+      [oldBrand],
+      function(err) {
+        if (err) return res.status(500).send(err.message);
+        res.json({ deleted: this.changes });
+      }
+    );
+  });
+});
+
+// Merge duplicate items
+app.post('/normalize/merge-duplicate-items', (req, res) => {
+  const { keepItem, removeItem } = req.body;
+  if (!keepItem || !removeItem) return res.status(400).send('Missing items');
+  db.serialize(() => {
+    // Transfer inventory quantity
+    db.run(
+      `UPDATE inventory
+         SET quantity = quantity + (
+           SELECT quantity
+             FROM inventory iv
+             JOIN items i ON iv.item_id = i.id
+            WHERE i.productname = ?
+         )
+       WHERE item_id = (SELECT id FROM items WHERE productname = ?)`,
+      [removeItem, keepItem]
+    );
+    // Delete the removed item's inventory row
+    db.run(
+      `DELETE FROM inventory
+         WHERE item_id = (SELECT id FROM items WHERE productname = ?)`,
+      [removeItem]
+    );
+    // Delete the duplicate item record
+    db.run(
+      `DELETE FROM items WHERE productname = ?`,
+      [removeItem],
+      function(err) {
+        if (err) return res.status(500).send(err.message);
+        res.json({ deleted: this.changes });
+      }
+    );
+  });
+});
+
+// Delete unused item (has no inventory)
+app.post('/normalize/delete-unused-item', (req, res) => {
+  const { itemName } = req.body;
+  if (!itemName) return res.status(400).send('Missing item name');
+  db.run(
+    `DELETE FROM items
+       WHERE productname = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM inventory WHERE item_id = items.id
+         )`,
+    [itemName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ deleted: this.changes });
+    }
+  );
+});
+
+// Delete unused reference (category, vendor or brand)
+app.post('/normalize/delete-unused-reference', (req, res) => {
+  const { type, name } = req.body;
+  if (!type || !name) return res.status(400).send('Missing type/name');
+  let table, column;
+  if (type === 'category') {
+    table = 'categories'; column = 'category';
+  } else if (type === 'vendor') {
+    table = 'vendors'; column = 'vendor';
+  } else if (type === 'brand') {
+    table = 'brands'; column = 'brand_name';
+  } else {
+    return res.status(400).send('Invalid type');
+  }
+  db.run(
+    `DELETE FROM ${table}
+       WHERE ${column} = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM items WHERE ${table.slice(0,-1)}_id = (SELECT id FROM ${table} WHERE ${column} = ?)
+         )`,
+    [name, name],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ deleted: this.changes });
+    }
+  );
+});
+
+// Update item cost
+app.post('/normalize/update-item-cost', (req, res) => {
+  const { itemName, newCost } = req.body;
+  if (!itemName || newCost == null) return res.status(400).send('Missing fields');
+  db.run(
+    `UPDATE items SET cost = ? WHERE productname = ?`,
+    [newCost, itemName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+// Update inventory quantity
+app.post('/normalize/update-inventory-quantity', (req, res) => {
+  const { itemName, newQty } = req.body;
+  if (!itemName || newQty == null) return res.status(400).send('Missing fields');
+  db.run(
+    `UPDATE inventory
+       SET quantity = ?
+       WHERE item_id = (SELECT id FROM items WHERE productname = ?)`,
+    [newQty, itemName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+// Remove item and its inventory
+app.post('/normalize/remove-item-and-inventory', (req, res) => {
+  const { itemName } = req.body;
+  if (!itemName) return res.status(400).send('Missing item name');
+  db.serialize(() => {
+    db.run(
+      `DELETE FROM inventory WHERE item_id = (SELECT id FROM items WHERE productname = ?)`,
+      [itemName]
+    );
+    db.run(
+      `DELETE FROM items WHERE productname = ?`,
+      [itemName],
+      function(err) {
+        if (err) return res.status(500).send(err.message);
+        res.json({ deleted: this.changes });
+      }
+    );
+  });
+});
+
+// Reassign item details (vendor, category, brand)
+app.post('/normalize/reassign-item-details', (req, res) => {
+  const { itemName, vendorName, categoryName, brandName } = req.body;
+  if (!itemName || !vendorName || !categoryName || !brandName) return res.status(400).send('Missing fields');
+  db.run(
+    `UPDATE items
+       SET vendor_id = (SELECT id FROM vendors WHERE vendor = ?),
+           category_id = (SELECT id FROM categories WHERE category = ?),
+           brand_id = (SELECT id FROM brands WHERE brand_name = ?)
+       WHERE productname = ?`,
+    [vendorName, categoryName, brandName, itemName],
+    function(err) {
+      if (err) return res.status(500).send(err.message);
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+// Flag low‑stock items
+app.get('/normalize/flag-low-stock', (req, res) => {
+  db.all(
+    `SELECT i.productname, iv.quantity
+       FROM inventory iv
+       JOIN items i ON iv.item_id = i.id
+      WHERE iv.quantity <= 0`,
+    [],
+    (err, rows) => {
+      if (err) return res.status(500).send(err.message);
+      res.json(rows);
+    }
+  );
+});
+
+//const normalizeRouter = require('./normalize');
+//app.use('/normalize', normalizeRouter);
+
+// Analytics: popular items by category
+app.get('/analytics/popular-items/:category', (req, res) => {
+  const category = req.params.category;
+  const limit = parseInt(req.query.limit) || 10;
+  const sql = `
+    SELECT i.productname, SUM(ci.quantity) AS total_ordered
+    FROM cart_items ci
+    JOIN carts c ON ci.cart_id = c.id
+    JOIN items i ON ci.productname = i.productname
+    JOIN categories cat ON i.category_id = cat.id
+    WHERE cat.category = ?
+      AND c.status = 'completed'
+    GROUP BY i.productname
+    ORDER BY total_ordered DESC
+    LIMIT ?
+  `;
+  db.all(sql, [category, limit], (err, rows) => {
+    if (err) return res.status(500).send(err.message);
+    res.json(rows);
+  });
+});
+
+// Analytics: vendor order frequency
+app.get('/analytics/vendor-frequency', (req, res) => {
+  const { vendor, start_date, end_date } = req.query;
+  if (!vendor || !start_date || !end_date) {
+    return res.status(400).send('vendor, start_date, and end_date query params required');
+  }
+  const sql = `
+    SELECT COUNT(DISTINCT c.id) AS num_orders, SUM(ci.quantity) AS total_units
+    FROM cart_items ci
+    JOIN carts c ON ci.cart_id = c.id
+    JOIN items i ON ci.productname = i.productname
+    JOIN vendors v ON i.vendor_id = v.id
+    WHERE v.vendor = ?
+      AND c.status = 'completed'
+      AND date(c.timestamp) BETWEEN date(?) AND date(?)
+  `;
+  db.get(sql, [vendor, start_date, end_date], (err, row) => {
+    if (err) return res.status(500).send(err.message);
+    res.json(row);
+  });
+});
+
+// Analytics: daily cart counts
+app.get('/analytics/daily-carts', (req, res) => {
+  const { start_date, end_date } = req.query;
+  if (!start_date || !end_date) {
+    return res.status(400).send('start_date and end_date query params required');
+  }
+  const sql = `
+    SELECT date(timestamp) AS day, COUNT(*) AS cart_count
+    FROM carts
+    WHERE date(timestamp) BETWEEN date(?) AND date(?)
+    GROUP BY day
+    ORDER BY day
+  `;
+  db.all(sql, [start_date, end_date], (err, rows) => {
+    if (err) return res.status(500).send(err.message);
+    res.json(rows);
+  });
+});
+
+// Analytics: brand demand over time
+app.get('/analytics/brand-demand', (req, res) => {
+  const { brand, interval } = req.query;
+  const bucket = interval === 'month' ? "strftime('%Y-%m', c.timestamp)" :
+                 interval === 'day'   ? "date(c.timestamp)" :
+                 "strftime('%Y-%W', c.timestamp)";
+  if (!brand) {
+    return res.status(400).send('brand query param required');
+  }
+  const sql = `
+    SELECT ${bucket} AS period, SUM(ci.quantity) AS total_units
+    FROM cart_items ci
+    JOIN carts c ON ci.cart_id = c.id
+    JOIN items i ON ci.productname = i.productname
+    JOIN brands b ON i.brand_id = b.id
+    WHERE b.brand_name = ?
+      AND c.status = 'completed'
+    GROUP BY period
+    ORDER BY period
+  `;
+  db.all(sql, [brand], (err, rows) => {
+    if (err) return res.status(500).send(err.message);
+    res.json(rows);
+  });
+});
+
 
 // Start the server
 app.listen(3000, () => {

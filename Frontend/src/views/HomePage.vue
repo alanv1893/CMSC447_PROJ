@@ -20,6 +20,8 @@
 
       <!-- Approve Transactions: Admin and Cashier -->
       <RouterLink v-if="role === 'admin' || role === 'cashier'" to="/home/approve-transactions" class="item-link">✅ Approve Transactions</RouterLink>
+
+      <RouterLink v-if="role === 'admin'" to="/home/normalize" class="item-link">📦 Normalize Inventory</RouterLink>
     </div>
   </div>
 </template>
