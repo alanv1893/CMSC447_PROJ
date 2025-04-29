@@ -43,7 +43,6 @@
         </select>
       </div>
 
-
       <table>
         <thead>
           <tr>
@@ -53,9 +52,8 @@
             <th>Brand</th>
             <th>Cost</th>
             <th>Quantity</th>
-            <th v-if="role === 'admin'">⋮</th>
           </tr>
-        </thead>
+        </thead> 
         <tbody>
           <tr v-for="(item, index) in filteredInventory" :key="index">
             <td>{{ item.category }}</td>
@@ -63,13 +61,15 @@
             <td>{{ item.vendor }}</td>
             <td>{{ item.brand_name }}</td>
             <td>${{ item.cost }}</td>
-            <td>{{ item.quantity }}</td>
-            <td v-if="role === 'admin'" class="menu-cell">
-              <button class="menu-button" @click="toggleMenu(index)">⋮</button>
-              <div v-if="showMenuIndex === index" class="dropdown-menu">
-                <button @click="openModal('rename', item)">Rename</button>
-                <button @click="openModal('quantity', item)">Update Qty</button>
-                <button @click="openModal('delete', item)">Delete</button>
+            <td>
+              <span>{{ item.quantity }}</span>
+              <div v-if="role === 'admin'" class="menu-cell" :ref="(el) => (menuRefs[index] = el)">
+                <button class="menu-button" @click.stop="toggleMenu(index)">⋮</button>
+                <div v-if="showMenuIndex === index" class="dropdown-menu">
+                  <button @click="openModal('rename', item)">Rename</button>
+                  <button @click="openModal('quantity', item)">Update Qty</button>
+                  <button @click="openModal('delete', item)">Delete</button>
+                </div>
               </div>
             </td>
           </tr>
@@ -80,7 +80,9 @@
         <div class="modal">
           <button class="close-btn" @click="closeModal">✖</button>
           <h3 v-if="modalType === 'rename'">Rename "{{ selectedItem.productname }}"</h3>
-          <h3 v-if="modalType === 'quantity'">Update Quantity for "{{ selectedItem.productname }}"</h3>
+          <h3 v-if="modalType === 'quantity'">
+            Update Quantity for "{{ selectedItem.productname }}"
+          </h3>
           <h3 v-if="modalType === 'delete'">Delete "{{ selectedItem.productname }}"?</h3>
 
           <input
@@ -99,11 +101,7 @@
       </div>
 
       <!-- Only show this if the user is admin -->
-      <button
-        v-if="role === 'admin'"
-        class="export-button"
-        @click="exportAsExcel"
-      >
+      <button v-if="role === 'admin'" class="export-button" @click="exportAsExcel">
         Download Inventory (.xlsx)
       </button>
     </template>
@@ -113,7 +111,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -129,7 +127,7 @@ const showMenuIndex = ref(null)
 const selectedItem = ref(null)
 const modalType = ref('')
 const modalInput = ref('')
-
+const menuRefs = ref([])
 
 
 function toggleMenu(index) {
@@ -148,6 +146,25 @@ function closeModal() {
   selectedItem.value = {}
   modalInput.value = ''
 }
+
+
+function handleClickOutside(event) {
+  const clickedInsideAnyMenu = menuRefs.value.some((el) =>
+    el?.contains(event.target)
+  )
+
+  if (!clickedInsideAnyMenu) {
+    showMenuIndex.value = null
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 async function submitModalAction() {
   const name = selectedItem.value.productname
@@ -169,7 +186,7 @@ async function submitModalAction() {
     const res = await fetch(`http://localhost:3000${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     })
 
     if (!res.ok) throw new Error(await res.text())
@@ -187,24 +204,23 @@ async function reloadInventory() {
 
 //  category dropdown values
 const uniqueCategories = computed(() => {
-  return [...new Set(inventory.value.map(i => i.category))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.category))].filter(Boolean)
 })
 const uniqueProducts = computed(() => {
-  return [...new Set(inventory.value.map(i => i.productname))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.productname))].filter(Boolean)
 })
 
 const uniqueVendors = computed(() => {
-  return [...new Set(inventory.value.map(i => i.vendor))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.vendor))].filter(Boolean)
 })
 
 const uniqueBrands = computed(() => {
-  return [...new Set(inventory.value.map(i => i.brand_name))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.brand_name))].filter(Boolean)
 })
-
 
 // filter logic
 const filteredInventory = computed(() => {
-  return inventory.value.filter(item => {
+  return inventory.value.filter((item) => {
     const q = searchQuery.value.toLowerCase()
 
     const matchesSearch =
@@ -213,25 +229,14 @@ const filteredInventory = computed(() => {
       item.vendor?.toLowerCase().includes(q) ||
       item.brand_name?.toLowerCase().includes(q)
 
-    const matchesCategory =
-      filterCategory.value === '' || item.category === filterCategory.value
-    const matchesProduct =
-      filterProduct.value === '' || item.productname === filterProduct.value
-    const matchesVendor =
-      filterVendor.value === '' || item.vendor === filterVendor.value
-    const matchesBrand =
-      filterBrand.value === '' || item.brand_name === filterBrand.value
+    const matchesCategory = filterCategory.value === '' || item.category === filterCategory.value
+    const matchesProduct = filterProduct.value === '' || item.productname === filterProduct.value
+    const matchesVendor = filterVendor.value === '' || item.vendor === filterVendor.value
+    const matchesBrand = filterBrand.value === '' || item.brand_name === filterBrand.value
 
-    return (
-      matchesSearch &&
-      matchesCategory &&
-      matchesProduct &&
-      matchesVendor &&
-      matchesBrand
-    )
+    return matchesSearch && matchesCategory && matchesProduct && matchesVendor && matchesBrand
   })
 })
-
 
 // fetch + login check
 onMounted(async () => {
@@ -263,11 +268,11 @@ function logOut() {
 
 function exportAsExcel() {
   fetch('http://localhost:3000/export-inventory')
-    .then(response => {
+    .then((response) => {
       if (!response.ok) throw new Error('Export error')
       return response.blob()
     })
-    .then(blob => {
+    .then((blob) => {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -276,12 +281,11 @@ function exportAsExcel() {
       link.click()
       document.body.removeChild(link)
     })
-    .catch(err => {
+    .catch((err) => {
       console.error('Export failed:', err)
     })
 }
 </script>
-
 
 <style scoped>
 :global(html, body) {
@@ -301,7 +305,7 @@ function exportAsExcel() {
 
 .titleBox {
   background-color: black;
-  color: #FFD700;
+  color: #ffd700;
   padding: 10px 0;
   width: 100vw;
   position: absolute;
@@ -337,6 +341,23 @@ td {
 
 th {
   background: #fde768;
+}
+
+td:last-child {
+  position: relative;
+  text-align: center;
+  vertical-align: middle; /* Add this to vertically center content */
+}
+
+td:last-child span {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.menu-cell {
+  display: inline-block;
+  vertical-align: middle;
+  left: 40%;
 }
 
 .logOutLink {
@@ -403,7 +424,6 @@ th {
   padding-left: 40px; /* 👈 matches left edge of table */
 }
 
-
 .filter-dropdown {
   padding: 8px 12px;
   font-size: 1rem;
@@ -436,7 +456,7 @@ th {
   border: 1px solid #ccc;
   z-index: 10;
   min-width: 140px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border-radius: 6px;
 }
 
@@ -456,9 +476,11 @@ th {
 
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.3);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -514,6 +536,4 @@ th {
   font-size: 1.2rem;
   cursor: pointer;
 }
-
-
 </style>
