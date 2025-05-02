@@ -43,7 +43,6 @@
         </select>
       </div>
 
-
       <table>
         <thead>
           <tr>
@@ -54,7 +53,7 @@
             <th>Cost</th>
             <th>Quantity</th>
           </tr>
-        </thead>
+        </thead> 
         <tbody>
           <tr v-for="(item, index) in filteredInventory" :key="index">
             <td>{{ item.category }}</td>
@@ -62,17 +61,67 @@
             <td>{{ item.vendor }}</td>
             <td>{{ item.brand_name }}</td>
             <td>${{ item.cost }}</td>
-            <td>{{ item.quantity }}</td>
+            <td>
+              <span>{{ item.quantity }}</span>
+              <div v-if="role === 'admin'" class="menu-cell" :ref="(el) => (menuRefs[index] = el)">
+                <button class="menu-button" @click.stop="toggleMenu(index)">⋮</button>
+                <div v-if="showMenuIndex === index" class="dropdown-menu">
+                  <button @click="openModal('edit', item)">Edit</button>
+                  <button @click="openModal('delete', item)">Delete</button>
+                </div>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
 
+      <div v-if="modalType" class="modal-overlay">
+        <div class="modal">
+          <button class="close-btn" @click="closeModal">✖</button>
+          <h3 v-if="modalType === 'edit'">Edit Item Details: "{{ selectedItem.productname }}"</h3>
+          <h3 v-if="modalType === 'delete'">Delete "{{ selectedItem.productname }}"?</h3>
+
+          <div v-if="modalType === 'edit'">
+            <label>
+              <strong>Product Name</strong>
+              <input v-model="editForm.productname" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Cost</strong>
+              <input v-model="editForm.cost" type="number" step="0.01" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Category</strong>
+              <input v-model="editForm.category" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Vendor</strong>
+              <input v-model="editForm.vendor" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Brand</strong>
+              <input v-model="editForm.brand" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Quantity</strong>
+              <input v-model.number="editForm.quantity" type="number" class="modal-input" />
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button class="approve-btn" @click="submitModalAction">✅ Confirm</button>
+            <button class="reject-btn" @click="closeModal">❌ Cancel</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Only show this if the user is admin -->
-      <button
-        v-if="role === 'admin'"
-        class="export-button"
-        @click="exportAsExcel"
-      >
+      <button v-if="role === 'admin'" class="export-button" @click="exportAsExcel">
         Download Inventory (.xlsx)
       </button>
     </template>
@@ -82,7 +131,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -94,27 +143,122 @@ const filterCategory = ref('')
 const filterProduct = ref('')
 const filterVendor = ref('')
 const filterBrand = ref('')
+const showMenuIndex = ref(null)
+const selectedItem = ref(null)
+const modalType = ref('')
+const modalInput = ref('')
+const menuRefs = ref([])
+const editForm = ref({
+  productname: '',
+  cost: 0,
+  category: '',
+  vendor: '',
+  brand: '',
+  quantity: 0
+});
+
+
+
+
+function toggleMenu(index) {
+  showMenuIndex.value = showMenuIndex.value === index ? null : index
+}
+
+function openModal(type, item) {
+  modalType.value = type
+  selectedItem.value = item
+  showMenuIndex.value = null
+
+  if (type === 'edit') {
+    editForm.value = {
+      productname: item.productname,
+      cost: item.cost,
+      category: item.category,
+      vendor: item.vendor,
+      brand: item.brand_name,
+      quantity: item.quantity
+    }
+  }
+}
+
+
+function closeModal() {
+  modalType.value = ''
+  selectedItem.value = {}
+  modalInput.value = ''
+}
+
+
+function handleClickOutside(event) {
+  const clickedInsideAnyMenu = menuRefs.value.some((el) =>
+    el?.contains(event.target)
+  )
+
+  if (!clickedInsideAnyMenu) {
+    showMenuIndex.value = null
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+
+async function submitModalAction() {
+  const name = selectedItem.value.productname
+  let endpoint = ''
+  let body = {}
+
+  if (modalType.value === 'edit') {
+  endpoint = '/normalize/update-full-item'
+  body = { oldName: selectedItem.value.productname, ...editForm.value }
+} else if (modalType.value === 'delete') {
+    endpoint = '/normalize/remove-item-and-inventory'
+    body = { itemName: name }
+  }
+
+  try {
+    const res = await fetch(`http://localhost:3000${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok) throw new Error(await res.text())
+    await reloadInventory()
+    closeModal()
+  } catch (err) {
+    console.error('Normalize action failed:', err)
+  }
+}
+
+async function reloadInventory() {
+  const res = await fetch('http://localhost:3000/full-inventory')
+  inventory.value = await res.json()
+}
 
 //  category dropdown values
 const uniqueCategories = computed(() => {
-  return [...new Set(inventory.value.map(i => i.category))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.category))].filter(Boolean)
 })
 const uniqueProducts = computed(() => {
-  return [...new Set(inventory.value.map(i => i.productname))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.productname))].filter(Boolean)
 })
 
 const uniqueVendors = computed(() => {
-  return [...new Set(inventory.value.map(i => i.vendor))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.vendor))].filter(Boolean)
 })
 
 const uniqueBrands = computed(() => {
-  return [...new Set(inventory.value.map(i => i.brand_name))].filter(Boolean)
+  return [...new Set(inventory.value.map((i) => i.brand_name))].filter(Boolean)
 })
-
 
 // filter logic
 const filteredInventory = computed(() => {
-  return inventory.value.filter(item => {
+  return inventory.value.filter((item) => {
     const q = searchQuery.value.toLowerCase()
 
     const matchesSearch =
@@ -123,25 +267,14 @@ const filteredInventory = computed(() => {
       item.vendor?.toLowerCase().includes(q) ||
       item.brand_name?.toLowerCase().includes(q)
 
-    const matchesCategory =
-      filterCategory.value === '' || item.category === filterCategory.value
-    const matchesProduct =
-      filterProduct.value === '' || item.productname === filterProduct.value
-    const matchesVendor =
-      filterVendor.value === '' || item.vendor === filterVendor.value
-    const matchesBrand =
-      filterBrand.value === '' || item.brand_name === filterBrand.value
+    const matchesCategory = filterCategory.value === '' || item.category === filterCategory.value
+    const matchesProduct = filterProduct.value === '' || item.productname === filterProduct.value
+    const matchesVendor = filterVendor.value === '' || item.vendor === filterVendor.value
+    const matchesBrand = filterBrand.value === '' || item.brand_name === filterBrand.value
 
-    return (
-      matchesSearch &&
-      matchesCategory &&
-      matchesProduct &&
-      matchesVendor &&
-      matchesBrand
-    )
+    return matchesSearch && matchesCategory && matchesProduct && matchesVendor && matchesBrand
   })
 })
-
 
 // fetch + login check
 onMounted(async () => {
@@ -173,11 +306,11 @@ function logOut() {
 
 function exportAsExcel() {
   fetch('http://localhost:3000/export-inventory')
-    .then(response => {
+    .then((response) => {
       if (!response.ok) throw new Error('Export error')
       return response.blob()
     })
-    .then(blob => {
+    .then((blob) => {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -186,12 +319,11 @@ function exportAsExcel() {
       link.click()
       document.body.removeChild(link)
     })
-    .catch(err => {
+    .catch((err) => {
       console.error('Export failed:', err)
     })
 }
 </script>
-
 
 <style scoped>
 :global(html, body) {
@@ -211,7 +343,7 @@ function exportAsExcel() {
 
 .titleBox {
   background-color: black;
-  color: #FFD700;
+  color: #ffd700;
   padding: 10px 0;
   width: 100vw;
   position: absolute;
@@ -247,6 +379,23 @@ td {
 
 th {
   background: #fde768;
+}
+
+td:last-child {
+  position: relative;
+  text-align: center;
+  vertical-align: middle; /* Add this to vertically center content */
+}
+
+td:last-child span {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.menu-cell {
+  display: inline-block;
+  vertical-align: middle;
+  left: 40%;
 }
 
 .logOutLink {
@@ -313,7 +462,6 @@ th {
   padding-left: 40px; /* 👈 matches left edge of table */
 }
 
-
 .filter-dropdown {
   padding: 8px 12px;
   font-size: 1rem;
@@ -322,5 +470,128 @@ th {
   min-width: 150px;
 }
 
+.menu-cell {
+  position: relative;
+  text-align: center;
+}
+
+.menu-button {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  padding: 12px 0;
+  color: #333;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: white;
+  border: 1px solid #ccc;
+  z-index: 10;
+  min-width: 140px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+}
+
+.dropdown-menu button {
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.dropdown-menu button:hover {
+  background: #fde768;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 10px;
+  min-width: 300px;
+  max-width: 500px;
+  width: 90%;
+  margin: 0 auto;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch; /* ensures labels stretch full width */
+}
+
+.modal-input {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.modal-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: space-around;
+}
+
+.approve-btn,
+.reject-btn {
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.approve-btn {
+  background: green;
+  color: white;
+}
+
+.reject-btn {
+  background: red;
+  color: white;
+}
+
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+label {
+  display: block;
+  text-align: left;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+label strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: bold;
+}
 
 </style>
