@@ -66,8 +66,7 @@
               <div v-if="role === 'admin'" class="menu-cell" :ref="(el) => (menuRefs[index] = el)">
                 <button class="menu-button" @click.stop="toggleMenu(index)">⋮</button>
                 <div v-if="showMenuIndex === index" class="dropdown-menu">
-                  <button @click="openModal('rename', item)">Rename</button>
-                  <button @click="openModal('quantity', item)">Update Qty</button>
+                  <button @click="openModal('edit', item)">Edit</button>
                   <button @click="openModal('delete', item)">Delete</button>
                 </div>
               </div>
@@ -79,19 +78,40 @@
       <div v-if="modalType" class="modal-overlay">
         <div class="modal">
           <button class="close-btn" @click="closeModal">✖</button>
-          <h3 v-if="modalType === 'rename'">Rename "{{ selectedItem.productname }}"</h3>
-          <h3 v-if="modalType === 'quantity'">
-            Update Quantity for "{{ selectedItem.productname }}"
-          </h3>
+          <h3 v-if="modalType === 'edit'">Edit Item Details: "{{ selectedItem.productname }}"</h3>
           <h3 v-if="modalType === 'delete'">Delete "{{ selectedItem.productname }}"?</h3>
 
-          <input
-            v-if="modalType !== 'delete'"
-            v-model="modalInput"
-            type="text"
-            class="modal-input"
-            :placeholder="modalType === 'rename' ? 'New name' : 'New quantity'"
-          />
+          <div v-if="modalType === 'edit'">
+            <label>
+              <strong>Product Name</strong>
+              <input v-model="editForm.productname" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Cost</strong>
+              <input v-model="editForm.cost" type="number" step="0.01" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Category</strong>
+              <input v-model="editForm.category" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Vendor</strong>
+              <input v-model="editForm.vendor" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Brand</strong>
+              <input v-model="editForm.brand" type="text" class="modal-input" />
+            </label>
+
+            <label>
+              <strong>Quantity</strong>
+              <input v-model.number="editForm.quantity" type="number" class="modal-input" />
+            </label>
+          </div>
 
           <div class="modal-actions">
             <button class="approve-btn" @click="submitModalAction">✅ Confirm</button>
@@ -128,6 +148,16 @@ const selectedItem = ref(null)
 const modalType = ref('')
 const modalInput = ref('')
 const menuRefs = ref([])
+const editForm = ref({
+  productname: '',
+  cost: 0,
+  category: '',
+  vendor: '',
+  brand: '',
+  quantity: 0
+});
+
+
 
 
 function toggleMenu(index) {
@@ -137,9 +167,20 @@ function toggleMenu(index) {
 function openModal(type, item) {
   modalType.value = type
   selectedItem.value = item
-  modalInput.value = ''
   showMenuIndex.value = null
+
+  if (type === 'edit') {
+    editForm.value = {
+      productname: item.productname,
+      cost: item.cost,
+      category: item.category,
+      vendor: item.vendor,
+      brand: item.brand_name,
+      quantity: item.quantity
+    }
+  }
 }
+
 
 function closeModal() {
   modalType.value = ''
@@ -171,13 +212,10 @@ async function submitModalAction() {
   let endpoint = ''
   let body = {}
 
-  if (modalType.value === 'rename') {
-    endpoint = '/normalize/rename-item'
-    body = { oldName: name, newName: modalInput.value }
-  } else if (modalType.value === 'quantity') {
-    endpoint = '/normalize/update-inventory-quantity'
-    body = { itemName: name, newQty: Math.max(0, parseInt(modalInput.value)) }
-  } else if (modalType.value === 'delete') {
+  if (modalType.value === 'edit') {
+  endpoint = '/normalize/update-full-item'
+  body = { oldName: selectedItem.value.productname, ...editForm.value }
+} else if (modalType.value === 'delete') {
     endpoint = '/normalize/remove-item-and-inventory'
     body = { itemName: name }
   }
@@ -492,14 +530,20 @@ td:last-child span {
   padding: 2rem;
   border-radius: 10px;
   min-width: 300px;
-  position: relative;
-  text-align: center;
+  max-width: 500px;
+  width: 90%;
+  margin: 0 auto;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch; /* ensures labels stretch full width */
 }
 
 .modal-input {
   width: 100%;
   padding: 0.5rem;
-  margin-top: 1rem;
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
 }
 
 .modal-actions {
@@ -536,4 +580,18 @@ td:last-child span {
   font-size: 1.2rem;
   cursor: pointer;
 }
+
+label {
+  display: block;
+  text-align: left;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+label strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: bold;
+}
+
 </style>

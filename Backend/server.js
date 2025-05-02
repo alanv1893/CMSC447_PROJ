@@ -945,6 +945,60 @@ app.get('/analytics/brand-demand', (req, res) => {
   });
 });
 
+app.post('/normalize/update-full-item', (req, res) => {
+  const { oldName, productname, cost, category, vendor, brand, quantity } = req.body;
+  if (!oldName || !productname || !category || !vendor || !brand || cost == null || quantity == null) {
+    return res.status(400).send('Missing fields');
+  }
+
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+
+    const getOrInsert = (table, column, value, cb) => {
+      db.get(`SELECT id FROM ${table} WHERE ${column} = ?`, [value], (err, row) => {
+        if (err) return cb(err);
+        if (row) return cb(null, row.id);
+        db.run(`INSERT INTO ${table} (${column}) VALUES (?)`, [value], function(err) {
+          if (err) return cb(err);
+          cb(null, this.lastID);
+        });
+      });
+    };
+
+    getOrInsert('categories', 'category', category, (err, category_id) => {
+      if (err) return db.run('ROLLBACK', () => res.status(500).send('Category error'));
+
+      getOrInsert('vendors', 'vendor', vendor, (err, vendor_id) => {
+        if (err) return db.run('ROLLBACK', () => res.status(500).send('Vendor error'));
+
+        getOrInsert('brands', 'brand_name', brand, (err, brand_id) => {
+          if (err) return db.run('ROLLBACK', () => res.status(500).send('Brand error'));
+
+          db.get(`SELECT id FROM items WHERE productname = ?`, [oldName], (err, itemRow) => {
+            if (err || !itemRow) return db.run('ROLLBACK', () => res.status(404).send('Item not found'));
+
+            const item_id = itemRow.id;
+            db.run(
+              `UPDATE items SET productname = ?, cost = ?, category_id = ?, vendor_id = ?, brand_id = ? WHERE id = ?`,
+              [productname, cost, category_id, vendor_id, brand_id, item_id],
+              (err) => {
+                if (err) return db.run('ROLLBACK', () => res.status(500).send('Item update failed'));
+
+                db.run(`UPDATE inventory SET quantity = ? WHERE item_id = ?`, [quantity, item_id], (err) => {
+                  if (err) return db.run('ROLLBACK', () => res.status(500).send('Inventory update failed'));
+                  db.run('COMMIT');
+                  res.send({ message: 'Item updated successfully' });
+                });
+              }
+            );
+          });
+        });
+      });
+    });
+  });
+});
+
+
 
 // Start the server
 app.listen(3000, () => {
