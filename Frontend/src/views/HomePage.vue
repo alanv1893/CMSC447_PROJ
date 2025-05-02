@@ -13,15 +13,13 @@
       <RouterLink v-if="role === 'admin'" to="/home/reports" class="item-link">📊 Run Reports</RouterLink>
 
       <!-- Add Items: Admin only -->
-      <RouterLink v-if="role === 'admin'" to="/home/add-item" class="item-link">➕ Add or Review Items</RouterLink>
+      <RouterLink v-if="role === 'admin'" to="/home/add-item" class="item-link">➕ Add Items</RouterLink>
 
       <!-- User Cart: All roles -->
       <RouterLink to="/home/cart" class="item-link">🛒 View User Cart</RouterLink>
 
       <!-- Approve Transactions: Admin and Cashier -->
       <RouterLink v-if="role === 'admin' || role === 'cashier'" to="/home/approve-transactions" class="item-link">✅ Approve Transactions</RouterLink>
-
-      <RouterLink v-if="role === 'admin'" to="/home/normalize" class="item-link">📦 Normalize Inventory</RouterLink>
     </div>
   </div>
 </template>

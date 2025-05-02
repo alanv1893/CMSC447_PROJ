@@ -623,106 +623,88 @@ app.post('/normalize/rename-brand', (req, res) => {
   );
 });
 
-// Merge two categories
-app.post('/normalize/merge-categories', (req, res) => {
-  const { oldCategory, newCategory } = req.body;
-  if (!oldCategory || !newCategory) return res.status(400).send('Missing categories');
-  db.serialize(() => {
-    db.run(
-      `UPDATE items
-         SET category_id = (SELECT id FROM categories WHERE category = ?)
-       WHERE category_id = (SELECT id FROM categories WHERE category = ?)`,
-      [newCategory, oldCategory]
-    );
-    db.run(
-      `DELETE FROM categories WHERE category = ?`,
-      [oldCategory],
-      function(err) {
-        if (err) return res.status(500).send(err.message);
-        res.json({ deleted: this.changes });
-      }
-    );
-  });
-});
-
-// Merge two vendors
-app.post('/normalize/merge-vendors', (req, res) => {
-  const { oldVendor, newVendor } = req.body;
-  if (!oldVendor || !newVendor) return res.status(400).send('Missing vendors');
-  db.serialize(() => {
-    db.run(
-      `UPDATE items
-         SET vendor_id = (SELECT id FROM vendors WHERE vendor = ?)
-       WHERE vendor_id = (SELECT id FROM vendors WHERE vendor = ?)`,
-      [newVendor, oldVendor]
-    );
-    db.run(
-      `DELETE FROM vendors WHERE vendor = ?`,
-      [oldVendor],
-      function(err) {
-        if (err) return res.status(500).send(err.message);
-        res.json({ deleted: this.changes });
-      }
-    );
-  });
-});
-
-// Merge two brands
-app.post('/normalize/merge-brands', (req, res) => {
-  const { oldBrand, newBrand } = req.body;
-  if (!oldBrand || !newBrand) return res.status(400).send('Missing brands');
-  db.serialize(() => {
-    db.run(
-      `UPDATE items
-         SET brand_id = (SELECT id FROM brands WHERE brand_name = ?)
-       WHERE brand_id = (SELECT id FROM brands WHERE brand_name = ?)`,
-      [newBrand, oldBrand]
-    );
-    db.run(
-      `DELETE FROM brands WHERE brand_name = ?`,
-      [oldBrand],
-      function(err) {
-        if (err) return res.status(500).send(err.message);
-        res.json({ deleted: this.changes });
-      }
-    );
-  });
-});
-
-// Merge duplicate items
 app.post('/normalize/merge-duplicate-items', (req, res) => {
-  const { keepItem, removeItem } = req.body;
-  if (!keepItem || !removeItem) return res.status(400).send('Missing items');
+  const { keepItem, removeItem, productname, cost, category, vendor, brand_name } = req.body;
+
+  if (!keepItem || !removeItem || !productname || cost == null || !category || !vendor || !brand_name) {
+    return res.status(400).send('Missing fields');
+  }
+
   db.serialize(() => {
-    // Transfer inventory quantity
-    db.run(
-      `UPDATE inventory
-         SET quantity = quantity + (
-           SELECT quantity
-             FROM inventory iv
-             JOIN items i ON iv.item_id = i.id
-            WHERE i.productname = ?
-         )
-       WHERE item_id = (SELECT id FROM items WHERE productname = ?)`,
-      [removeItem, keepItem]
-    );
-    // Delete the removed item's inventory row
-    db.run(
-      `DELETE FROM inventory
-         WHERE item_id = (SELECT id FROM items WHERE productname = ?)`,
-      [removeItem]
-    );
-    // Delete the duplicate item record
-    db.run(
-      `DELETE FROM items WHERE productname = ?`,
-      [removeItem],
-      function(err) {
-        if (err) return res.status(500).send(err.message);
-        res.json({ deleted: this.changes });
-      }
-    );
+    db.run('BEGIN TRANSACTION');
+
+    const getOrInsert = (table, column, value, cb) => {
+      db.get(`SELECT id FROM ${table} WHERE ${column} = ?`, [value], (err, row) => {
+        if (err) return cb(err);
+        if (row) return cb(null, row.id);
+        db.run(`INSERT INTO ${table} (${column}) VALUES (?)`, [value], function (err) {
+          if (err) return cb(err);
+          cb(null, this.lastID);
+        });
+      });
+    };
+
+    getOrInsert('categories', 'category', category, (err, category_id) => {
+      if (err) return db.run('ROLLBACK', () => res.status(500).send('Category error'));
+
+      getOrInsert('vendors', 'vendor', vendor, (err, vendor_id) => {
+        if (err) return db.run('ROLLBACK', () => res.status(500).send('Vendor error'));
+
+        getOrInsert('brands', 'brand_name', brand_name, (err, brand_id) => {
+          if (err) return db.run('ROLLBACK', () => res.status(500).send('Brand error'));
+
+          db.get(`SELECT id FROM items WHERE productname = ?`, [keepItem], (err, keepRow) => {
+            if (err || !keepRow) return db.run('ROLLBACK', () => res.status(500).send('Keep item not found'));
+            const keepId = keepRow.id;
+
+            db.get(`SELECT id FROM items WHERE productname = ?`, [removeItem], (err, removeRow) => {
+              if (err || !removeRow) return db.run('ROLLBACK', () => res.status(500).send('Remove item not found'));
+              const removeId = removeRow.id;
+
+              // Get inventory quantities for both items
+              db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [keepId], (err, keepInv) => {
+                if (err || keepInv == null) return db.run('ROLLBACK', () => res.status(500).send('Error getting keep item inventory'));
+
+                db.get(`SELECT quantity FROM inventory WHERE item_id = ?`, [removeId], (err, removeInv) => {
+                  if (err || removeInv == null) return db.run('ROLLBACK', () => res.status(500).send('Error getting remove item inventory'));
+
+                  const mergedQuantity = (keepInv.quantity || 0) + (removeInv.quantity || 0);
+
+                  // Update kept item details
+                  db.run(
+                    `UPDATE items SET productname = ?, cost = ?, category_id = ?, vendor_id = ?, brand_id = ? WHERE id = ?`,
+                    [productname, cost, category_id, vendor_id, brand_id, keepId],
+                    (err) => {
+                      if (err) return db.run('ROLLBACK', () => res.status(500).send('Update failed'));
+
+                      // Update inventory
+                      db.run(`UPDATE inventory SET quantity = ? WHERE item_id = ?`, [mergedQuantity, keepId], (err) => {
+                        if (err) return db.run('ROLLBACK', () => res.status(500).send('Inventory update failed'));
+
+                        // Clean up remove item
+                        db.run(`DELETE FROM inventory WHERE item_id = ?`, [removeId], (err) => {
+                          if (err) return db.run('ROLLBACK', () => res.status(500).send('Inventory cleanup failed'));
+
+                          db.run(`DELETE FROM items WHERE id = ?`, [removeId], (err) => {
+                            if (err) return db.run('ROLLBACK', () => res.status(500).send('Item cleanup failed'));
+
+                            db.run('COMMIT');
+                            res.send({ message: 'Items merged successfully' });
+                          });
+                        });
+                      });
+                    }
+                  );
+                });
+              });
+            });
+          });
+        });
+      });
+    });
   });
 });
+
 
 // Delete unused item (has no inventory)
 app.post('/normalize/delete-unused-item', (req, res) => {
