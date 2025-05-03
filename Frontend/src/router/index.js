@@ -26,7 +26,6 @@ const routes = [
       { path: 'inventory', name: 'DisplayInventory', component: DisplayInventory },
       { path: 'approve-transactions', name: 'approve-transactions', component: ApproveTransactions },
       { path: 'reports', name: 'reports', component: Reports },
-      { path: 'normalize', name: 'normalize', component: Normalize },
     ]
   }
 ]

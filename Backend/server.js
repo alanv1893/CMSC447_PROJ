@@ -5,6 +5,9 @@ const xlsx = require('xlsx'); // Import the xlsx package
 const db = new sqlite3.Database('./db/database.sqlite');
 const cors = require('cors')
 const bcrypt = require('bcrypt'); 
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+const fs = require('fs');
 
 
 app.use(express.json());
@@ -220,6 +223,82 @@ app.get('/items/category/:category', (req, res) => {
     if (err) return res.status(500).send('DB Error');
     res.send(rows);
   });
+});
+
+// Upload Excel file and process its contents
+app.post('/upload-items', upload.single('file'), (req, res) => {
+  const file = req.file;
+  if (!file) return res.status(400).send('No file uploaded.');
+
+  const workbook = xlsx.readFile(file.path);
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const data = xlsx.utils.sheet_to_json(sheet);
+
+  fs.unlinkSync(file.path); // delete uploaded file after reading
+
+  const insertItem = (item, callback) => {
+    const { Product, Cost, Categories, Vendor, Brand, Quantity } = item;
+
+    if (!Product || !Cost || !Categories || !Vendor || !Brand || !Quantity) {
+      return callback(new Error('Missing required fields in row'));
+    }
+
+    // Reuse getOrInsert from earlier code or define it again here
+    const getOrInsert = (table, column, value, cb) => {
+      db.get(`SELECT id FROM ${table} WHERE ${column} = ?`, [value], (err, row) => {
+        if (err) return cb(err);
+        if (row) return cb(null, row.id);
+        db.run(`INSERT INTO ${table} (${column}) VALUES (?)`, [value], function (err) {
+          if (err) return cb(err);
+          cb(null, this.lastID);
+        });
+      });
+    };
+
+    db.serialize(() => {
+      getOrInsert('categories', 'category', Categories, (err, category_id) => {
+        if (err) return callback(err);
+        getOrInsert('vendors', 'vendor', Vendor, (err, vendor_id) => {
+          if (err) return callback(err);
+          getOrInsert('brands', 'brand_name', Brand, (err, brand_id) => {
+            if (err) return callback(err);
+
+            db.run(`INSERT INTO items (productname, cost, vendor_id, category_id, brand_id)
+                    VALUES (?, ?, ?, ?, ?)`,
+              [Product, Cost, vendor_id, category_id, brand_id], function (err) {
+                if (err) return callback(err);
+
+                const item_id = this.lastID;
+                db.run(`INSERT INTO inventory (item_id, quantity) VALUES (?, ?)`,
+                  [item_id, Quantity], callback);
+              });
+          });
+        });
+      });
+    });
+  };
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  const processNext = (index) => {
+    if (index >= data.length) {
+      return res.send({ message: 'Upload complete', successCount, errorCount });
+    }
+
+    insertItem(data[index], (err) => {
+      if (err) {
+        console.error(`Row ${index + 2} failed: ${err.message}`);
+        errorCount++;
+      } else {
+        successCount++;
+      }
+      processNext(index + 1);
+    });
+  };
+
+  processNext(0);
 });
 
 ///////////////////////////////////////////////////////////////////////////

@@ -401,32 +401,37 @@ function exportAsExcel() {
   margin: 0;
   padding: 0;
   width: 100%;
-  overflow-x: hidden;
+  height: 100%;
+  overflow-y: auto;
+}
+
+:global(body) {
+  overflow-y: auto !important;
 }
 
 .container {
   background-color: #f5c100;
   min-height: 100vh;
-  padding: 100px 20px 20px;
-  text-align: center;
+  padding: 120px 20px 60px;
   box-sizing: border-box;
 }
 
 .titleBox {
   background-color: black;
   color: #ffd700;
-  padding: 10px 0;
-  width: 100vw;
-  position: absolute;
+  width: 100%;
+  height: 80px;
+  position: fixed;
   top: 0;
   left: 0;
-  text-align: center;
-  box-sizing: border-box;
-  height: 80px;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+
+
 
 .title {
   margin: 0;

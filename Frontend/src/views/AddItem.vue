@@ -42,6 +42,21 @@
       </div>
       <button type="submit">Add Item</button>
     </form>
+
+    <button class="popup-button" @click="showUploadModal = true">📤 Upload Excel File</button>
+
+    <!-- Upload Modal -->
+    <div v-if="showUploadModal" class="modal-overlay" @click.self="showUploadModal = false">
+      <div class="modal-content">
+        <h3>Upload Inventory File</h3>
+        <input type="file" @change="handleFileUpload" accept=".xlsx, .xls" />
+        <div class="modal-buttons">
+          <button @click="submitFile" :disabled="!file">Submit Upload</button>
+          <button @click="showUploadModal = false">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <p v-if="responseMessage">{{ responseMessage }}</p>
   </div>
 </template>
@@ -57,6 +72,36 @@ const brand_name = ref('')
 const quantity = ref(1)
 const responseMessage = ref('')
 const loggedIn = ref(false)
+const file = ref(null)
+const showUploadModal = ref(false)
+
+
+
+function handleFileUpload(event) {
+  file.value = event.target.files[0]
+}
+
+async function submitFile() {
+  if (!file.value) return
+
+  const formData = new FormData()
+  formData.append('file', file.value)
+
+  try {
+    const res = await fetch('http://localhost:3000/upload-items', {
+      method: 'POST',
+      body: formData
+    })
+
+    const result = await res.json()
+    responseMessage.value = `Uploaded successfully: ${result.successCount} items. Errors: ${result.errorCount}`
+    file.value = null
+    showUploadModal.value = false
+  } catch (err) {
+    responseMessage.value = 'Upload failed: ' + err.message
+  }
+}
+
 
 function formatCost() {
   if (cost.value !== '' && !isNaN(cost.value)) {
@@ -241,4 +286,57 @@ button:hover {
   font-weight: bold;
   text-decoration: underline;
 }
+.popup-button {
+  background-color: green;
+  color: white;
+  font-weight: bold;
+  border: none;
+  padding: 10px 20px;
+  margin-top: 30px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.popup-button:hover {
+  background-color: darkgreen;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.modal-content h3 {
+  margin-bottom: 20px;
+}
+
+.modal-content input[type="file"] {
+  margin-bottom: 20px;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px; /* Spacing between buttons */
+  margin-top: 20px;
+}
+
 </style>
