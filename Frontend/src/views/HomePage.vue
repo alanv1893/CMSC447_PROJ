@@ -7,7 +7,7 @@
 
     <div class="button-group">
       <!-- Inventory: All roles -->
-      <RouterLink to="/home/inventory" class="item-link">📋 View Full Inventory</RouterLink>
+      <RouterLink to="/home/inventory" class="item-link">📋 View Inventory</RouterLink>
 
       <!-- Reports: Admin only -->
       <RouterLink v-if="role === 'admin'" to="/home/reports" class="item-link">📊 Run Reports</RouterLink>
@@ -16,10 +16,12 @@
       <RouterLink v-if="role === 'admin'" to="/home/add-item" class="item-link">➕ Add Items</RouterLink>
 
       <!-- User Cart: All roles -->
-      <RouterLink to="/home/cart" class="item-link">🛒 View User Cart</RouterLink>
+      <RouterLink to="/home/cart" class="item-link">🛒 Create Cart</RouterLink>
 
       <!-- Approve Transactions: Admin and Cashier -->
       <RouterLink v-if="role === 'admin' || role === 'cashier'" to="/home/approve-transactions" class="item-link">✅ Approve Transactions</RouterLink>
+
+      <RouterLink v-if="role === 'admin'" to="/home/past-transactions" class="item-link">📜 Past Transactions</RouterLink>
     </div>
   </div>
 </template>
