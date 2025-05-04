@@ -8,6 +8,7 @@ import AddItem from '../views/AddItem.vue'
 import ApproveTransactions from '../views/ApproveTransactions.vue'
 import DisplayInventory from '../views/DisplayInventory.vue'
 import Reports from '../views/Reports.vue'
+import PastTransactions from '../views/PastTransactions.vue'
 // Layouts
 import MainLayout from '../layouts/Layout.vue'
 
@@ -26,6 +27,7 @@ const routes = [
       { path: 'inventory', name: 'DisplayInventory', component: DisplayInventory },
       { path: 'approve-transactions', name: 'approve-transactions', component: ApproveTransactions },
       { path: 'reports', name: 'reports', component: Reports },
+      { path: 'past-transactions', name: 'past-transactions', component: PastTransactions },
     ]
   }
 ]

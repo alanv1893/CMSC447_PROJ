@@ -515,15 +515,23 @@ app.get('/reset-db', (req, res) => {
   });
 });
 
-// Get all pending carts
+// ✅ Get carts filtered by status (default: 'pending')
 app.get('/carts', (req, res) => {
-  db.all(`SELECT * FROM carts WHERE status = 'pending' ORDER BY id DESC`, (err, rows) => {
-    if (err) return res.status(500).send('Error fetching carts');
+  const status = req.query.status || 'pending'; // default to 'pending' if not specified
+
+  const sql = `SELECT * FROM carts WHERE status = ? ORDER BY id DESC`;
+
+  db.all(sql, [status], (err, rows) => {
+    if (err) {
+      console.error('Error fetching carts:', err);
+      return res.status(500).send('Error fetching carts');
+    }
     res.send(rows);
   });
 });
 
-// Get all items in a cart
+
+// ✅ Get all items in a cart
 app.get('/cart-items/:cart_id', (req, res) => {
   const { cart_id } = req.params;
 
@@ -541,6 +549,7 @@ app.get('/cart-items/:cart_id', (req, res) => {
     res.send(rows);
   });
 });
+
 
 // Get transaction count by hour for a given day
 app.get('/traffic-report', (req, res) => {
