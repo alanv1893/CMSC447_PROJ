@@ -67,6 +67,7 @@
                 <button class="menu-button" @click.stop="toggleMenu(index)">⋮</button>
                 <div v-if="showMenuIndex === index" class="dropdown-menu">
                   <button @click="openModal('edit', item)">Edit</button>
+                  <button @click="openModal('merge-select', item)">Merge</button>
                   <button @click="openModal('delete', item)">Delete</button>
                 </div>
               </div>
@@ -78,47 +79,70 @@
       <div v-if="modalType" class="modal-overlay">
         <div class="modal">
           <button class="close-btn" @click="closeModal">✖</button>
+
+          <!-- Title -->
           <h3 v-if="modalType === 'edit'">Edit Item Details: "{{ selectedItem.productname }}"</h3>
+          <h3 v-if="modalType === 'merge-select'">Merge "{{ selectedItem.productname }}" Into...</h3>
           <h3 v-if="modalType === 'delete'">Delete "{{ selectedItem.productname }}"?</h3>
 
-          <div v-if="modalType === 'edit'">
-            <label>
-              <strong>Product Name</strong>
+          <!-- Edit Form -->
+          <div v-if="modalType === 'edit' || modalType === 'merge-edit'">
+            <label><strong>Product Name</strong>
               <input v-model="editForm.productname" type="text" class="modal-input" />
             </label>
-
-            <label>
-              <strong>Cost</strong>
+            <label><strong>Cost</strong>
               <input v-model="editForm.cost" type="number" step="0.01" class="modal-input" />
             </label>
-
-            <label>
-              <strong>Category</strong>
+            <label><strong>Category</strong>
               <input v-model="editForm.category" type="text" class="modal-input" />
             </label>
-
-            <label>
-              <strong>Vendor</strong>
+            <label><strong>Vendor</strong>
               <input v-model="editForm.vendor" type="text" class="modal-input" />
             </label>
-
-            <label>
-              <strong>Brand</strong>
-              <input v-model="editForm.brand" type="text" class="modal-input" />
+            <label><strong>Brand</strong>
+              <input v-model="editForm.brand_name" type="text" class="modal-input" />
             </label>
-
-            <label>
-              <strong>Quantity</strong>
+            <label><strong>Quantity</strong>
               <input v-model.number="editForm.quantity" type="number" class="modal-input" />
             </label>
           </div>
 
+          <!-- Merge Select Step -->
+          <div v-if="modalType === 'merge-select'">
+            <select v-model="mergeTarget" class="modal-input">
+              <option disabled value="">Select item</option>
+              <option
+                v-for="item in inventory.filter(i => i.productname !== selectedItem.productname)"
+                :key="item.productname"
+                :value="item.productname"
+              >
+                {{ item.productname }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Action Buttons -->
           <div class="modal-actions">
-            <button class="approve-btn" @click="submitModalAction">✅ Confirm</button>
+            <button
+              v-if="modalType === 'merge-select'"
+              class="approve-btn"
+              :disabled="!mergeTarget"
+              @click="prepareMergeEdit"
+            >Next</button>
+
+            <button
+              v-if="modalType === 'edit' || modalType === 'merge-edit' || modalType === 'delete'"
+              class="approve-btn"
+              @click="submitModalAction"
+            >
+              ✅ Confirm
+            </button>
+
             <button class="reject-btn" @click="closeModal">❌ Cancel</button>
           </div>
         </div>
       </div>
+
 
       <!-- Only show this if the user is admin -->
       <button v-if="role === 'admin'" class="export-button" @click="exportAsExcel">
@@ -148,15 +172,38 @@ const selectedItem = ref(null)
 const modalType = ref('')
 const modalInput = ref('')
 const menuRefs = ref([])
+const mergeTarget = ref('')
+const confirmedMergeTarget = ref('') 
 const editForm = ref({
   productname: '',
   cost: 0,
   category: '',
   vendor: '',
-  brand: '',
+  brand_name: '',
   quantity: 0
 });
 
+
+function prepareMergeEdit() {
+  const targetItem = inventory.value.find(i => i.productname === mergeTarget.value)
+  if (!targetItem) {
+    console.warn('Target item not found')
+    return
+  }
+
+  confirmedMergeTarget.value = targetItem.productname
+
+  editForm.value = {
+  productname: targetItem.productname,
+  cost: targetItem.cost ?? 0,
+  category: targetItem.category ?? '',
+  vendor: targetItem.vendor ?? '',
+  brand_name: targetItem.brand_name ?? '',
+  quantity: targetItem.quantity + selectedItem.value.quantity
+}
+
+  modalType.value = 'merge-edit'
+}
 
 
 
@@ -175,7 +222,7 @@ function openModal(type, item) {
       cost: item.cost,
       category: item.category,
       vendor: item.vendor,
-      brand: item.brand_name,
+      brand_name: item.brand_name,
       quantity: item.quantity
     }
   }
@@ -208,13 +255,37 @@ onBeforeUnmount(() => {
 })
 
 async function submitModalAction() {
+  console.log('MERGE EDIT SUBMIT:', {
+    modalType: modalType.value,
+    selectedItem: selectedItem.value,
+    editForm: editForm.value
+  });
   const name = selectedItem.value.productname
   let endpoint = ''
   let body = {}
 
   if (modalType.value === 'edit') {
   endpoint = '/normalize/update-full-item'
-  body = { oldName: selectedItem.value.productname, ...editForm.value }
+  body = {
+    oldName: selectedItem.value.productname,
+    productname: editForm.value.productname,
+    cost: editForm.value.cost,
+    category: editForm.value.category,
+    vendor: editForm.value.vendor,
+    brand: editForm.value.brand_name,
+    quantity: editForm.value.quantity
+  }
+} else if (modalType.value === 'merge-edit') {
+  endpoint = '/normalize/merge-duplicate-items'
+  body = {
+    keepItem: editForm.value.productname,
+    removeItem: selectedItem.value.productname,
+    productname: editForm.value.productname,
+    cost: editForm.value.cost,
+    category: editForm.value.category,
+    vendor: editForm.value.vendor,
+    brand_name: editForm.value.brand_name,
+  }
 } else if (modalType.value === 'delete') {
     endpoint = '/normalize/remove-item-and-inventory'
     body = { itemName: name }
@@ -330,32 +401,37 @@ function exportAsExcel() {
   margin: 0;
   padding: 0;
   width: 100%;
-  overflow-x: hidden;
+  height: 100%;
+  overflow-y: auto;
+}
+
+:global(body) {
+  overflow-y: auto !important;
 }
 
 .container {
   background-color: #f5c100;
   min-height: 100vh;
-  padding: 100px 20px 20px;
-  text-align: center;
+  padding: 120px 20px 60px;
   box-sizing: border-box;
 }
 
 .titleBox {
   background-color: black;
   color: #ffd700;
-  padding: 10px 0;
-  width: 100vw;
-  position: absolute;
+  width: 100%;
+  height: 80px;
+  position: fixed;
   top: 0;
   left: 0;
-  text-align: center;
-  box-sizing: border-box;
-  height: 80px;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+
+
 
 .title {
   margin: 0;
