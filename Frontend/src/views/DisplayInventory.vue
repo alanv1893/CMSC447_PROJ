@@ -24,19 +24,16 @@
           </option>
         </select>
 
-        <!-- Product -->
         <select v-model="filterProduct" class="filter-dropdown">
           <option value="">Products</option>
           <option v-for="(prod, i) in uniqueProducts" :key="i">{{ prod }}</option>
         </select>
 
-        <!-- Vendor -->
         <select v-model="filterVendor" class="filter-dropdown">
           <option value="">Vendors</option>
           <option v-for="(ven, i) in uniqueVendors" :key="i">{{ ven }}</option>
         </select>
 
-        <!-- Brand -->
         <select v-model="filterBrand" class="filter-dropdown">
           <option value="">Brands</option>
           <option v-for="(b, i) in uniqueBrands" :key="i">{{ b }}</option>
@@ -80,13 +77,12 @@
         <div class="modal">
           <button class="close-btn" @click="closeModal">✖</button>
 
-          <!-- Title -->
           <h3 v-if="modalType === 'edit'">Edit Item Details: "{{ selectedItem.productname }}"</h3>
           <h3 v-if="modalType === 'merge-select'">Merge "{{ selectedItem.productname }}" Into...</h3>
           <h3 v-if="modalType === 'delete'">Delete "{{ selectedItem.productname }}"?</h3>
 
           <!-- Edit Form -->
-          <div v-if="modalType === 'edit' || modalType === 'merge-edit'">
+          <div v-if="modalType === 'edit'">
             <label><strong>Product Name</strong>
               <input v-model="editForm.productname" type="text" class="modal-input" />
             </label>
@@ -127,11 +123,11 @@
               v-if="modalType === 'merge-select'"
               class="approve-btn"
               :disabled="!mergeTarget"
-              @click="prepareMergeEdit"
-            >Next</button>
+              @click="submitModalAction"
+            >✅ Confirm</button>
 
             <button
-              v-if="modalType === 'edit' || modalType === 'merge-edit' || modalType === 'delete'"
+              v-if="modalType === 'edit' || modalType === 'delete'"
               class="approve-btn"
               @click="submitModalAction"
             >
@@ -143,14 +139,18 @@
         </div>
       </div>
 
-
-      <!-- Only show this if the user is admin -->
       <button v-if="role === 'admin'" class="export-button" @click="exportAsExcel">
         Download Inventory (.xlsx)
       </button>
     </template>
 
     <p v-else>Loading inventory...</p>
+
+    <!-- ✅ Merge success popup -->
+    <div v-if="mergeSuccessPopup" class="merge-popup">
+      <span>Merge Successful!</span>
+      <button class="close-popup" @click="mergeSuccessPopup = false">✖</button>
+    </div>
   </div>
 </template>
 
@@ -173,7 +173,8 @@ const modalType = ref('')
 const modalInput = ref('')
 const menuRefs = ref([])
 const mergeTarget = ref('')
-const confirmedMergeTarget = ref('') 
+const mergeSuccessPopup = ref(false)
+
 const editForm = ref({
   productname: '',
   cost: 0,
@@ -181,31 +182,7 @@ const editForm = ref({
   vendor: '',
   brand_name: '',
   quantity: 0
-});
-
-
-function prepareMergeEdit() {
-  const targetItem = inventory.value.find(i => i.productname === mergeTarget.value)
-  if (!targetItem) {
-    console.warn('Target item not found')
-    return
-  }
-
-  confirmedMergeTarget.value = targetItem.productname
-
-  editForm.value = {
-  productname: targetItem.productname,
-  cost: targetItem.cost ?? 0,
-  category: targetItem.category ?? '',
-  vendor: targetItem.vendor ?? '',
-  brand_name: targetItem.brand_name ?? '',
-  quantity: targetItem.quantity + selectedItem.value.quantity
-}
-
-  modalType.value = 'merge-edit'
-}
-
-
+})
 
 function toggleMenu(index) {
   showMenuIndex.value = showMenuIndex.value === index ? null : index
@@ -228,13 +205,11 @@ function openModal(type, item) {
   }
 }
 
-
 function closeModal() {
   modalType.value = ''
   selectedItem.value = {}
   modalInput.value = ''
 }
-
 
 function handleClickOutside(event) {
   const clickedInsideAnyMenu = menuRefs.value.some((el) =>
@@ -255,38 +230,33 @@ onBeforeUnmount(() => {
 })
 
 async function submitModalAction() {
-  console.log('MERGE EDIT SUBMIT:', {
-    modalType: modalType.value,
-    selectedItem: selectedItem.value,
-    editForm: editForm.value
-  });
   const name = selectedItem.value.productname
   let endpoint = ''
   let body = {}
 
   if (modalType.value === 'edit') {
-  endpoint = '/normalize/update-full-item'
-  body = {
-    oldName: selectedItem.value.productname,
-    productname: editForm.value.productname,
-    cost: editForm.value.cost,
-    category: editForm.value.category,
-    vendor: editForm.value.vendor,
-    brand: editForm.value.brand_name,
-    quantity: editForm.value.quantity
-  }
-} else if (modalType.value === 'merge-edit') {
-  endpoint = '/normalize/merge-duplicate-items'
-  body = {
-    keepItem: editForm.value.productname,
-    removeItem: selectedItem.value.productname,
-    productname: editForm.value.productname,
-    cost: editForm.value.cost,
-    category: editForm.value.category,
-    vendor: editForm.value.vendor,
-    brand_name: editForm.value.brand_name,
-  }
-} else if (modalType.value === 'delete') {
+    endpoint = '/normalize/update-full-item'
+    body = {
+      oldName: selectedItem.value.productname,
+      productname: editForm.value.productname,
+      cost: editForm.value.cost,
+      category: editForm.value.category,
+      vendor: editForm.value.vendor,
+      brand: editForm.value.brand_name,
+      quantity: editForm.value.quantity
+    }
+  } else if (modalType.value === 'merge-select') {
+    endpoint = '/normalize/merge-duplicate-items'
+    body = {
+      keepItem: mergeTarget.value,
+      removeItem: selectedItem.value.productname,
+      productname: mergeTarget.value,
+      cost: selectedItem.value.cost,
+      category: selectedItem.value.category,
+      vendor: selectedItem.value.vendor,
+      brand_name: selectedItem.value.brand_name
+    }
+  } else if (modalType.value === 'delete') {
     endpoint = '/normalize/remove-item-and-inventory'
     body = { itemName: name }
   }
@@ -295,12 +265,20 @@ async function submitModalAction() {
     const res = await fetch(`http://localhost:3000${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body)
     })
 
     if (!res.ok) throw new Error(await res.text())
-    await reloadInventory()
-    closeModal()
+      if (modalType.value === 'merge-select') {
+        mergeSuccessPopup.value = true
+        setTimeout(() => {
+          mergeSuccessPopup.value = false
+        }, 5000)
+      }
+
+      await reloadInventory()
+      closeModal()
+
   } catch (err) {
     console.error('Normalize action failed:', err)
   }
@@ -311,43 +289,37 @@ async function reloadInventory() {
   inventory.value = await res.json()
 }
 
-//  category dropdown values
 const uniqueCategories = computed(() => {
   return [...new Set(inventory.value.map((i) => i.category))].filter(Boolean)
 })
 const uniqueProducts = computed(() => {
   return [...new Set(inventory.value.map((i) => i.productname))].filter(Boolean)
 })
-
 const uniqueVendors = computed(() => {
   return [...new Set(inventory.value.map((i) => i.vendor))].filter(Boolean)
 })
-
 const uniqueBrands = computed(() => {
   return [...new Set(inventory.value.map((i) => i.brand_name))].filter(Boolean)
 })
 
-// filter logic
 const filteredInventory = computed(() => {
+  const q = searchQuery.value.toLowerCase()
   return inventory.value.filter((item) => {
-    const q = searchQuery.value.toLowerCase()
-
     const matchesSearch =
       item.category?.toLowerCase().includes(q) ||
       item.productname?.toLowerCase().includes(q) ||
       item.vendor?.toLowerCase().includes(q) ||
       item.brand_name?.toLowerCase().includes(q)
 
-    const matchesCategory = filterCategory.value === '' || item.category === filterCategory.value
-    const matchesProduct = filterProduct.value === '' || item.productname === filterProduct.value
-    const matchesVendor = filterVendor.value === '' || item.vendor === filterVendor.value
-    const matchesBrand = filterBrand.value === '' || item.brand_name === filterBrand.value
+    const matchesCategory = !filterCategory.value || item.category === filterCategory.value
+    const matchesProduct = !filterProduct.value || item.productname === filterProduct.value
+    const matchesVendor = !filterVendor.value || item.vendor === filterVendor.value
+    const matchesBrand = !filterBrand.value || item.brand_name === filterBrand.value
 
     return matchesSearch && matchesCategory && matchesProduct && matchesVendor && matchesBrand
   })
 })
 
-// fetch + login check
 onMounted(async () => {
   loggedIn.value = localStorage.getItem('loggedIn') === 'true'
   if (!loggedIn.value) {
@@ -365,7 +337,6 @@ onMounted(async () => {
   }
 })
 
-// Navigation + Download
 function goBack() {
   history.back()
 }
@@ -670,4 +641,26 @@ label strong {
   font-weight: bold;
 }
 
+.merge-popup {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: white;
+  border: 1px solid #ccc;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: bold;
+}
+
+.close-popup {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+}
 </style>
