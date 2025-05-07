@@ -1,63 +1,62 @@
 <template>
-  <div class="reports">
-    <h1>📈 Reports Dashboard</h1>
-    <p>Select a report below to generate:</p>
- 
-    <div class="report-buttons">
-      <button @click="activeReport = 'popular'">📦 Popular Items by Category</button>
-      <button @click="activeReport = 'vendor'">🚚 Vendor Frequency</button>
-      <button @click="activeReport = 'daily'">📅 Daily Cart Counts</button>
-      <button @click="activeReport = 'brand'">🏷️ Brand Demand Over Time</button>
+  <div class="backButton" @click="goBack" title="Go Back">
+    <span class="backButton-text">Back</span>
+  </div>
+  <div class="reports-page">
+    <div class="titleBox">
+      <h1>Reports Dashboard</h1>
     </div>
- 
-    <div class="report-preview">
-      <template v-if="activeReport === 'popular'">
-        <h2>Popular Items by Category</h2>
-        <input v-model="category" placeholder="Enter category" />
-        <input v-model.number="limit" type="number" placeholder="Limit" />
-        <button @click="getPopularItems">Get Report</button>
-        <ul>
-          <li v-for="row in popularItems" :key="row.productname">{{ row.productname }} — {{ row.total_ordered }}</li>
-        </ul>
-      </template>
- 
-      <template v-if="activeReport === 'vendor'">
-        <h2>Vendor Order Frequency</h2>
-        <input v-model="vendor" placeholder="Enter vendor name" />
-        <input v-model="vendorStart" type="date" />
-        <input v-model="vendorEnd" type="date" />
-        <button @click="getVendorFrequency">Get Report</button>
-        <div v-if="vendorReport">
-          <p>Orders: {{ vendorReport.num_orders }}</p>
-          <p>Units: {{ vendorReport.total_units }}</p>
+
+    <div class="content-container">
+      <div class="report-card">
+        <h2>📈 Weekly Cart Report</h2>
+        <p>Select a Sunday to view the weekly cart activity for that week.</p>
+        <div class="report-input">
+          <input v-model="weekStart" type="date" />
+          <button @click="getWeeklyTraffic">Get Report</button>
         </div>
-      </template>
- 
-      <template v-if="activeReport === 'daily'">
-        <h2>Daily Cart Counts</h2>
-        <input v-model="dailyStart" type="date" />
-        <input v-model="dailyEnd" type="date" />
-        <button @click="getDailyCarts">Get Report</button>
-        <ul>
-          <li v-for="row in dailyCarts" :key="row.day">{{ row.day }} — {{ row.cart_count }}</li>
-        </ul>
-      </template>
- 
-      <template v-if="activeReport === 'brand'">
-        <h2>Brand Demand Over Time</h2>
-        <input v-model="brand" placeholder="Enter brand" />
-        <select v-model="interval">
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
-        </select>
-        <button @click="getBrandDemand">Get Report</button>
-        <ul>
-          <li v-for="row in brandDemand" :key="row.period">{{ row.period }} — {{ row.total_units }}</li>
-        </ul>
-      </template>
- 
-      <p v-if="!activeReport" class="placeholder">Report preview will be displayed here after selection.</p>
+        <div v-if="loading">🔄 Loading...</div>
+        <div v-else-if="weeklyTraffic.total_carts !== undefined">
+          <strong>Total carts:</strong> {{ weeklyTraffic.total_carts }}
+        </div>
+        <div v-else-if="weekStart">No data for this date.</div>
+      </div>
+
+      <div class="report-card">
+        <h2>💰 Sales Report</h2>
+        <p>Select a start and end date to view all sales during that period.</p>
+        <div class="report-input">
+          <input v-model="salesStartDate" type="date" />
+          <input v-model="salesEndDate" type="date" />
+          <button @click="getSalesReport">Show Sales</button>
+        </div>
+        <div v-if="loadingSales">🔄 Loading...</div>
+        <div v-else-if="salesReport.items && salesReport.items.length">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Quantity Sold</th>
+                <th>Total Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in salesReport.items" :key="item.productname">
+                <td>{{ item.productname }}</td>
+                <td>{{ item.total_quantity }}</td>
+                <td>\${{ item.total_revenue.toFixed(2) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p><strong>Total Revenue:</strong> \${{ salesReport.totalRevenue.toFixed(2) }}</p>
+        </div>
+        <div v-else-if="salesStartDate && salesEndDate">No sales found for this range.</div>
+      </div>
+
+    </div>
+    <div class="report-card" v-if="salesReport && (salesReport.items.length || salesReport.totalRevenue)">
+      <h3>🔧 Raw Sales Report Debug Data</h3>
+      <pre>{{ salesReport }}</pre>
     </div>
   </div>
 </template>
@@ -65,86 +64,141 @@
 <script setup>
 import { ref } from 'vue'
 
-const activeReport = ref(null)
+const weekStart = ref('')
+const weeklyTraffic = ref({})
+const loading = ref(false)
 
-// Popular Items
-const category = ref('')
-const limit = ref(10)
-const popularItems = ref([])
-const getPopularItems = async () => {
-  const res = await fetch(`/analytics/popular-items/${category.value}?limit=${limit.value}`)
-  popularItems.value = await res.json()
+const getWeeklyTraffic = async () => {
+  if (!weekStart.value) return
+  loading.value = true
+  weeklyTraffic.value = {}
+  try {
+    const res = await fetch(`http://localhost:3000/analytics/weekly-traffic?start_date=${weekStart.value}`)
+    const data = await res.json()
+    weeklyTraffic.value = data
+  } catch (err) {
+    console.error('Error fetching report:', err)
+  } finally {
+    loading.value = false
+  }
 }
 
-// Vendor Frequency
-const vendor = ref('')
-const vendorStart = ref('')
-const vendorEnd = ref('')
-const vendorReport = ref(null)
-const getVendorFrequency = async () => {
-  const res = await fetch(`/analytics/vendor-frequency?vendor=${vendor.value}&start_date=${vendorStart.value}&end_date=${vendorEnd.value}`)
-  vendorReport.value = await res.json()
+function goBack() {
+  history.back()
 }
 
-// Daily Carts
-const dailyStart = ref('')
-const dailyEnd = ref('')
-const dailyCarts = ref([])
-const getDailyCarts = async () => {
-  const res = await fetch(`/analytics/daily-carts?start_date=${dailyStart.value}&end_date=${dailyEnd.value}`)
-  dailyCarts.value = await res.json()
-}
+const salesStartDate = ref('')
+const salesEndDate = ref('')
+const salesReport = ref({ items: [], totalRevenue: 0 })
+const loadingSales = ref(false)
 
-// Brand Demand
-const brand = ref('')
-const interval = ref('month')
-const brandDemand = ref([])
-const getBrandDemand = async () => {
-  const res = await fetch(`/analytics/brand-demand?brand=${brand.value}&interval=${interval.value}`)
-  brandDemand.value = await res.json()
+const getSalesReport = async () => {
+  if (!salesStartDate.value || !salesEndDate.value) return
+  loadingSales.value = true
+  salesReport.value = { items: [], totalRevenue: 0 }
+  try {
+    const res = await fetch(`http://localhost:3000/analytics/sales-report?start_date=${salesStartDate.value}&end_date=${salesEndDate.value}`)
+    const data = await res.json()
+    salesReport.value = {
+      items: Array.isArray(data.items) ? data.items : [],
+      totalRevenue: data.totalRevenue || 0
+    }
+  } catch (err) {
+    console.error('Error fetching sales report:', err)
+  } finally {
+    loadingSales.value = false
+  }
 }
 </script>
 
 <style scoped>
-.reports {
+.reports-page {
+  background-color: #f5c100;
+  min-height: 100vh;
+  padding-bottom: 40px;
+  font-family: 'Arial', sans-serif;
+}
+
+.titleBox {
+  background-color: #000;
+  color: gold;
   padding: 20px;
-  font-family: Arial, sans-serif;
+  text-align: center;
+  font-weight: bold;
+  font-size: 28px;
 }
 
-h1 {
-  margin-bottom: 10px;
-}
-
-.report-buttons {
+.content-container {
+  width: 90%;
+  max-width: 800px;
+  margin: 30px auto;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.report-card {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  border: 2px solid #333;
+}
+
+.report-input {
+  display: flex;
   gap: 10px;
+  margin-top: 10px;
   margin-bottom: 20px;
 }
 
 button {
   padding: 10px 15px;
-  border: none;
-  border-radius: 5px;
   background-color: #444;
   color: white;
+  border: none;
+  border-radius: 5px;
   cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
 }
 
 button:hover {
   background-color: #222;
 }
 
-.report-preview {
-  border: 2px dashed #ccc;
-  padding: 20px;
-  min-height: 150px;
-  background-color: #f9f9f9;
+.backButton {
+  margin: 20px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #333;
+  display: inline-block;
 }
 
-.placeholder {
-  color: #999;
-  text-align: center;
+.backButton-text {
+  text-decoration: underline;
+}
+
+.backButton:hover .backButton-text {
+  color: #000;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid #333;
+  padding: 8px;
+  text-align: left;
+}
+
+th {
+  background-color: #f0f0f0;
 }
 </style>
+
+pre {
+  background: #eee;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+}

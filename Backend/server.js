@@ -1070,6 +1070,76 @@ app.post('/normalize/update-full-item', (req, res) => {
 
 
 
+
+app.get('/analytics/weekly-traffic', (req, res) => {
+  const { start_date } = req.query;
+  if (!start_date) return res.status(400).send('start_date query param required');
+
+  const start = new Date(start_date);
+  const dayOfWeek = start.getUTCDay(); // Sunday = 0
+
+  if (dayOfWeek !== 0) {
+    return res.status(400).send('start_date must be a Sunday');
+  }
+
+  const sql = `
+    SELECT DATE(timestamp) AS day, COUNT(*) AS total_carts
+    FROM carts
+    WHERE DATE(timestamp) BETWEEN DATE(?) AND DATE(?, '+6 days')
+    GROUP BY day
+    ORDER BY day;
+  `;
+
+  db.all(sql, [start_date, start_date], (err, rows) => {
+    if (err) {
+      console.error('[ERROR] DB error:', err.message);
+      return res.status(500).send(err.message);
+    }
+
+    // Fill in all 7 days (Sunday to Saturday) even if some are missing
+    const result = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      const iso = date.toISOString().split('T')[0];
+      const match = rows.find(r => r.day === iso);
+      result.push({ day: iso, total_carts: match ? match.total_carts : 0 });
+    }
+
+    res.json(result);
+  });
+});
+
+app.get('/analytics/sales-report', (req, res) => {
+  const { start_date, end_date } = req.query;
+  if (!start_date || !end_date) {
+    return res.status(400).send('start_date and end_date query parameters are required');
+  }
+
+  const sql = `
+    SELECT 
+      ci.productname,
+      SUM(ci.quantity) AS total_quantity,
+      SUM(ci.quantity * i.cost) AS total_revenue
+    FROM carts c
+    JOIN cart_items ci ON c.id = ci.cart_id
+    JOIN items i ON ci.productname = i.productname
+    WHERE c.status = 'completed'
+      AND DATE(c.timestamp) BETWEEN DATE(?) AND DATE(?)
+    GROUP BY ci.productname
+    ORDER BY total_quantity DESC;
+  `;
+
+  db.all(sql, [start_date, end_date], (err, rows) => {
+    if (err) {
+      console.error('[ERROR] DB error in sales-report:', err.message);
+      return res.status(500).send('Database error');
+    }
+
+    const totalRevenue = rows.reduce((acc, item) => acc + item.total_revenue, 0);
+    res.json({ items: rows, totalRevenue });
+  });
+});
 // Start the server
 app.listen(3000, () => {
   console.log('Server running on http://localhost:3000');
