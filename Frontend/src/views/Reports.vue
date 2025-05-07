@@ -1,10 +1,11 @@
 <template>
-  <div class="backButton" @click="goBack" title="Go Back">
-    <span class="backButton-text">Back</span>
-  </div>
-  <div class="reports-page">
+  <div class="container">
     <div class="titleBox">
-      <h1>Reports Dashboard</h1>
+      <div class="backButton" @click="goBack" title="Go Back">
+        <span class="backButton-text">Back</span>
+      </div>
+      <h1 class="title">📊 Reports Dashboard</h1>
+      <a class="logOutLink" v-if="loggedIn" @click="logOut" href="/">Log Out</a>
     </div>
 
     <div class="content-container">
@@ -52,21 +53,29 @@
         </div>
         <div v-else-if="salesStartDate && salesEndDate">No sales found for this range.</div>
       </div>
-
-    </div>
-    <div class="report-card" v-if="salesReport && (salesReport.items.length || salesReport.totalRevenue)">
-      <h3>🔧 Raw Sales Report Debug Data</h3>
-      <pre>{{ salesReport }}</pre>
     </div>
   </div>
 </template>
 
+
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 const weekStart = ref('')
 const weeklyTraffic = ref({})
 const loading = ref(false)
+const router = useRouter()
+const loggedIn = ref(false)
+
+onMounted(() => {
+  loggedIn.value = localStorage.getItem('loggedIn') === 'true'
+})
+
+function logOut() {
+  localStorage.clear()
+  router.push('/')
+}
 
 const getWeeklyTraffic = async () => {
   if (!weekStart.value) return
@@ -112,26 +121,65 @@ const getSalesReport = async () => {
 </script>
 
 <style scoped>
-.reports-page {
+.container {
   background-color: #f5c100;
   min-height: 100vh;
-  padding-bottom: 40px;
-  font-family: 'Arial', sans-serif;
+  padding: 120px 20px 60px;
+  box-sizing: border-box;
 }
 
 .titleBox {
-  background-color: #000;
-  color: gold;
-  padding: 20px;
-  text-align: center;
+  background-color: black;
+  color: #ffd700;
+  width: 100%;
+  height: 80px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 3rem;
   font-weight: bold;
-  font-size: 28px;
+}
+
+.backButton {
+  position: absolute;
+  top: 25px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.backButton-text {
+  color: gold;
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.logOutLink {
+  position: absolute;
+  top: 25px;
+  right: 20px;
+  font-size: 20px;
+  white-space: nowrap;
+  font-weight: bold;
+  color: gold;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .content-container {
   width: 90%;
-  max-width: 800px;
-  margin: 30px auto;
+  max-width: 900px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 30px;
@@ -146,6 +194,7 @@ const getSalesReport = async () => {
 
 .report-input {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 10px;
   margin-bottom: 20px;
@@ -164,25 +213,10 @@ button:hover {
   background-color: #222;
 }
 
-.backButton {
-  margin: 20px;
-  cursor: pointer;
-  font-weight: bold;
-  color: #333;
-  display: inline-block;
-}
-
-.backButton-text {
-  text-decoration: underline;
-}
-
-.backButton:hover .backButton-text {
-  color: #000;
-}
-
 table {
   width: 100%;
   border-collapse: collapse;
+  background: #fff;
 }
 
 th, td {
@@ -192,13 +226,7 @@ th, td {
 }
 
 th {
-  background-color: #f0f0f0;
+  background-color: #fde768;
 }
-</style>
 
-pre {
-  background: #eee;
-  padding: 10px;
-  border-radius: 4px;
-  overflow-x: auto;
-}
+</style>
