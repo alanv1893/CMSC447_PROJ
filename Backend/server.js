@@ -394,6 +394,20 @@ app.post('/cart-items', (req, res) => {
     });
 });
 
+app.post('/reject-cart', (req, res) => {
+  const { cart_id } = req.body;
+
+  if (!cart_id) return res.status(400).send('Missing cart ID');
+
+  db.run(`UPDATE carts SET status = 'rejected' WHERE id = ?`, [cart_id], function (err) {
+    if (err) {
+      console.error('Error rejecting cart:', err);
+      return res.status(500).send('Failed to reject cart');
+    }
+    res.send({ message: 'Cart marked as rejected' });
+  });
+});
+
 // Approve cart and update inventory
 app.post('/approve-cart', (req, res) => {
   const { cart_id, override, override_password, override_username } = req.body;

@@ -145,8 +145,26 @@ async function sendApproval(cartId, override = false) {
 
 
 
-function rejectCart(cartId) {
-  selectedCart.value = null
+async function rejectCart(cartId) {
+  try {
+    const res = await fetch('http://localhost:3000/reject-cart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cart_id: cartId })
+    });
+
+    if (!res.ok) {
+      const msg = await res.text();
+      alert('Failed to reject cart: ' + msg);
+      return;
+    }
+
+    // Remove cart from local view
+    carts.value = carts.value.filter(cart => (cart.cart_id || cart.id) !== cartId);
+    selectedCart.value = null;
+  } catch (err) {
+    console.error('Error rejecting cart:', err);
+  }
 }
 
 function openModal(cart) {
