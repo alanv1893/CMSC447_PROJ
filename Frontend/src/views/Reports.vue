@@ -1,99 +1,70 @@
 <template>
-  <div class="container">
-    <div class="titleBox">
-      <div class="backButton" @click="goBack" title="Go Back">
-        <span class="backButton-text">Back</span>
+  <div class="page-container">
+    <header class="header-bar">
+      <div class="nav-buttons">
+        <div class="nav-left">
+          <div class="backButton" @click="goBack" title="Go Back">
+            <span class="backButton-text">Back</span>
+          </div>
+        </div>
+        <div class="nav-right">
+          <div class="logoutButton" @click="logout" title="Logout">
+            <span class="logoutButton-text">Log Out</span>
+          </div>
+        </div>
       </div>
-      <h1 class="title">📊 Reports Dashboard</h1>
-      <a class="logOutLink" v-if="loggedIn" @click="logOut" href="/">Log Out</a>
-    </div>
+      <h1>Reports Dashboard</h1>
+    </header>
+    <div class="reports-page">
+      <div class="content-container">
 
-    <div class="content-container">
-      <div class="report-card">
-        <h2>📈 Weekly Cart Report</h2>
-        <p>Select a Sunday to view the weekly cart activity for that week.</p>
-        <div class="report-input">
-          <input v-model="weekStart" type="date" />
-          <button @click="getWeeklyTraffic">Get Report</button>
+        <div class="report-card">
+          <div class="titleBox">
+            <h2>Sales Reports</h2>
+            <p>Select a start and end date to view all sales during that period.</p>
+            <div class="report-input">
+              <input v-model="salesStartDate" type="date" />
+              <input v-model="salesEndDate" type="date" />
+              <button @click="getSalesReport">Show Sales</button>
+            </div>
+          </div>
+          <div v-if="loadingSales">🔄 Loading...</div>
+          <div v-else-if="salesReport.items && salesReport.items.length">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Quantity Sold</th>
+                  <th>Total Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in salesReport.items" :key="item.productname">
+                  <td>{{ item.productname }}</td>
+                  <td>{{ item.total_quantity }}</td>
+                  <td>${{ item.total_revenue.toFixed(2) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p><strong>Total Cost:</strong> ${{ salesReport.totalRevenue.toFixed(2) }}</p>
+          </div>
+          <div v-else-if="salesStartDate && salesEndDate">No sales found for this range.</div>
         </div>
-        <div v-if="loading">🔄 Loading...</div>
-        <div v-else-if="weeklyTraffic.total_carts !== undefined">
-          <strong>Total carts:</strong> {{ weeklyTraffic.total_carts }}
-        </div>
-        <div v-else-if="weekStart">No data for this date.</div>
-      </div>
 
-      <div class="report-card">
-        <h2>💰 Sales Report</h2>
-        <p>Select a start and end date to view all sales during that period.</p>
-        <div class="report-input">
-          <input v-model="salesStartDate" type="date" />
-          <input v-model="salesEndDate" type="date" />
-          <button @click="getSalesReport">Show Sales</button>
-        </div>
-        <div v-if="loadingSales">🔄 Loading...</div>
-        <div v-else-if="salesReport.items && salesReport.items.length">
-          <table>
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Quantity Sold</th>
-                <th>Total Revenue</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in salesReport.items" :key="item.productname">
-                <td>{{ item.productname }}</td>
-                <td>{{ item.total_quantity }}</td>
-                <td>\${{ item.total_revenue.toFixed(2) }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p><strong>Total Revenue:</strong> \${{ salesReport.totalRevenue.toFixed(2) }}</p>
-        </div>
-        <div v-else-if="salesStartDate && salesEndDate">No sales found for this range.</div>
       </div>
     </div>
   </div>
 </template>
 
-
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-
-const weekStart = ref('')
-const weeklyTraffic = ref({})
-const loading = ref(false)
-const router = useRouter()
-const loggedIn = ref(false)
-
-onMounted(() => {
-  loggedIn.value = localStorage.getItem('loggedIn') === 'true'
-})
-
-function logOut() {
-  localStorage.clear()
-  router.push('/')
-}
-
-const getWeeklyTraffic = async () => {
-  if (!weekStart.value) return
-  loading.value = true
-  weeklyTraffic.value = {}
-  try {
-    const res = await fetch(`http://localhost:3000/analytics/weekly-traffic?start_date=${weekStart.value}`)
-    const data = await res.json()
-    weeklyTraffic.value = data
-  } catch (err) {
-    console.error('Error fetching report:', err)
-  } finally {
-    loading.value = false
-  }
-}
+import { ref } from 'vue'
 
 function goBack() {
   history.back()
+}
+
+function logout() {
+  window.location.href = '/login'
 }
 
 const salesStartDate = ref('')
@@ -121,37 +92,57 @@ const getSalesReport = async () => {
 </script>
 
 <style scoped>
-.container {
-  background-color: #f5c100;
+.page-container {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  padding: 120px 20px 60px;
-  box-sizing: border-box;
 }
 
-.titleBox {
+/* Updated title bar styles to match Approve Transactions */
+.header-bar {
   background-color: black;
-  color: #ffd700;
-  width: 100%;
+  color: #FFD700;
+  width: 100vw;
   height: 80px;
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  z-index: 10;
 }
 
-.title {
-  margin: 0;
+.header-bar h1 {
   font-size: 3rem;
   font-weight: bold;
+  margin: 0;
+  padding: 0;
+  font-family: 'Arial', sans-serif;
+}
+
+.nav-buttons {
+  position: absolute;
+  top: 25px;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-sizing: border-box;
+  z-index: 11;
+}
+
+.nav-left,
+.nav-right {
+  display: flex;
+  align-items: center;
 }
 
 .backButton {
-  position: absolute;
-  top: 25px;
-  left: 20px;
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -164,21 +155,31 @@ const getSalesReport = async () => {
   text-decoration: underline;
 }
 
-.logOutLink {
-  position: absolute;
-  top: 25px;
-  right: 20px;
-  font-size: 20px;
-  white-space: nowrap;
-  font-weight: bold;
-  color: gold;
+.logoutButton {
+  display: flex;
+  align-items: center;
   cursor: pointer;
+}
+
+.logoutButton-text {
+  color: gold;
+  font-size: 1.2rem;
+  font-weight: bold;
   text-decoration: underline;
+}
+
+/* Main report container */
+.reports-page {
+  background-color: #f5c100;
+  min-height: 100vh;
+  padding-top: 100px; /* Space for fixed header */
+  padding-bottom: 40px;
+  font-family: 'Arial', sans-serif;
 }
 
 .content-container {
   width: 90%;
-  max-width: 900px;
+  max-width: 800px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -194,10 +195,27 @@ const getSalesReport = async () => {
 
 .report-input {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: 15px;
+  justify-content: flex-start;
+  align-items: center;
   margin-top: 10px;
   margin-bottom: 20px;
+}
+
+.report-input input[type="date"] {
+  padding: 4px 8px;
+  border: 2px solid #ccc;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: 'Arial', sans-serif;
+  background-color: white;
+  color: #333;
+  outline: none;
+  width: 80px;
+}
+
+.report-input input[type="date"]:focus {
+  border-color: #000;
 }
 
 button {
@@ -207,6 +225,7 @@ button {
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  font-family: 'Arial', sans-serif;
 }
 
 button:hover {
@@ -216,17 +235,29 @@ button:hover {
 table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
 }
 
-th, td {
+th,
+td {
   border: 1px solid #333;
   padding: 8px;
   text-align: left;
 }
 
 th {
-  background-color: #fde768;
+  background-color: #f0f0f0;
 }
 
+pre {
+  background: #eee;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+body,
+input,
+button {
+  font-family: 'Arial', sans-serif;
+}
 </style>
